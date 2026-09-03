@@ -160,6 +160,12 @@ textarea {
   font-size: 17px;
 }
 
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .nav-link {
   padding: 6px 11px;
   border-radius: 7px;
@@ -191,6 +197,50 @@ textarea {
   padding: 5px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 34px;
+  margin-left: 8px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.nav-toggle:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+
+.nav-toggle-bars {
+  display: grid;
+  gap: 3px;
+  width: 16px;
+}
+
+.nav-toggle-bars span {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+/* Three bars fold into a cross while open. */
+.nav-toggle-bars[data-open="true"] span:nth-child(1) {
+  transform: translateY(5px) rotate(45deg);
+}
+.nav-toggle-bars[data-open="true"] span:nth-child(2) {
+  opacity: 0;
+}
+.nav-toggle-bars[data-open="true"] span:nth-child(3) {
+  transform: translateY(-5px) rotate(-45deg);
 }
 
 /* --- Type ------------------------------------------------------------------ */
@@ -885,6 +935,74 @@ span.meter {
   }
 }
 
+/* Below this the six links stop fitting beside the brand and the auth control.
+   Rather than let the bar scroll sideways - which hides "Sign in" off the edge
+   of a phone, exactly when a new member needs it - the links collapse behind a
+   toggle and the auth control keeps its place on the bar. */
+@media (max-width: 860px) {
+  .nav-inner {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .brand {
+    order: 0;
+    margin-right: 0;
+  }
+
+  .nav-spacer {
+    order: 1;
+  }
+
+  .nav-auth {
+    order: 2;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    order: 3;
+  }
+
+  /* Shown or not, rather than animated open: a height transition needs a
+     guessed ceiling, and the menu is a different length for admins. */
+  .nav-links {
+    display: none;
+    order: 4;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .nav-links[data-open="true"] {
+    display: flex;
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-links .nav-link {
+    padding: 11px 10px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-toggle-bars span {
+    transition: none;
+  }
+}
+
+@media (max-width: 420px) {
+  /* The handle is a nicety; the way out is not. */
+  .nav-handle {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   h1 {
     font-size: 29px;
@@ -897,6 +1015,5 @@ span.meter {
   }
   .nav {
     padding: 12px 14px;
-    overflow-x: auto;
   }
 }

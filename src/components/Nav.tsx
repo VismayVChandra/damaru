@@ -24,14 +24,22 @@ interface Me {
 export default function Nav() {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | undefined>(undefined);
+  const [open, setOpen] = useState(false);
 
   // Re-check on every navigation - cheap, and keeps the handle chip in sync
-  // right after signup/login/logout without a full page reload.
+  // right after signup/login/logout without a full page reload. Navigating
+  // also closes the menu, so a tap on mobile does not leave it hanging open.
   useEffect(() => {
+    setOpen(false);
     api<Me>("/api/me")
       .then(setMe)
       .catch(() => setMe({ user: null, profile: null }));
   }, [pathname]);
+
+  const links = [
+    ...LINKS,
+    ...(me?.profile?.isAdmin ? [{ href: "/admin/frictions", label: "Review" }] : []),
+  ];
 
   return (
     <nav className="nav">
@@ -40,28 +48,26 @@ export default function Nav() {
           <span className="brand-mark">&#129346;</span>
           <span>Damaru</span>
         </Link>
-        {LINKS.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className="nav-link"
-            data-active={pathname === l.href ? "true" : "false"}
-          >
-            {l.label}
-          </Link>
-        ))}
-        {me?.profile?.isAdmin && (
-          <Link
-            href="/admin/frictions"
-            className="nav-link"
-            data-active={pathname === "/admin/frictions" ? "true" : "false"}
-          >
-            Review
-          </Link>
-        )}
+
+        <div className="nav-links" id="nav-links" data-open={open ? "true" : "false"}>
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="nav-link"
+              data-active={pathname === l.href ? "true" : "false"}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </div>
+
         <span className="nav-spacer" />
+
+        {/* Auth stays outside the collapsible menu: on a phone, "how do I sign
+            in" must never be the thing hidden behind a tap. */}
         {me === undefined ? null : me.user ? (
-          <form action={logout} className="row" style={{ gap: 8 }}>
+          <form action={logout} className="row nav-auth" style={{ gap: 8 }}>
             <span className="nav-handle">
               {me.profile ? `@${me.profile.handle}` : "finish your profile"}
             </span>
@@ -70,10 +76,25 @@ export default function Nav() {
             </button>
           </form>
         ) : (
-          <Link href="/login" className="btn btn-sm">
+          <Link href="/login" className="btn btn-sm nav-auth">
             Sign in
           </Link>
         )}
+
+        <button
+          type="button"
+          className="nav-toggle"
+          aria-expanded={open}
+          aria-controls="nav-links"
+          aria-label={open ? "Close menu" : "Open menu"}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="nav-toggle-bars" data-open={open ? "true" : "false"} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
       </div>
     </nav>
   );
