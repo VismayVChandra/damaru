@@ -99,10 +99,15 @@ export async function POST(request: Request) {
     ? (body.appetite as Appetite)
     : "stretch";
 
+  // Unlike is_admin, this one is the person's own call - default on for a new
+  // profile, and only changed when the client actually sends a boolean.
+  const existing = await getProfileById(user.id);
+  const discoverable =
+    typeof body.discoverable === "boolean" ? body.discoverable : (existing?.discoverable ?? true);
+
   // Ownership is the session, never anything the client sends. Every profile
   // row's id IS the Supabase auth user id, so a person can only ever write
   // their own row - upsert's onConflict is "id".
-  const existing = await getProfileById(user.id);
   const now = new Date().toISOString();
 
   const profile: Profile = {
@@ -118,6 +123,7 @@ export async function POST(request: Request) {
     // Carried through, never taken from the request - upsertProfile does not
     // write this column at all, so admin status survives a profile edit.
     isAdmin: existing?.isAdmin ?? false,
+    discoverable,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import type { Checklist, Problem, ProgressEntry } from "@/lib/types";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
@@ -272,6 +273,11 @@ export default function ProblemCard({
                   </span>
                 )}
               </div>
+              {interactive && growing.length > 0 && (
+                <Link href="/pair" className="pair-hint">
+                  Find someone who covers {growing[0].toLowerCase()} &rarr;
+                </Link>
+              )}
             </div>
           </div>
         </div>

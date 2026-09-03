@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/generate", label: "Generate" },
   { href: "/dashboard", label: "My problems" },
   { href: "/browse", label: "Club feed" },
+  { href: "/pair", label: "Pairing" },
   { href: "/submit", label: "Submit a friction" },
 ];
 

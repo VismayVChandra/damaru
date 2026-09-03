@@ -692,6 +692,26 @@ h3 {
   border-color: var(--warn);
 }
 
+/* --- Pairing -------------------------------------------------------------- */
+
+/* An observation about the person's own history, not a stat - so it reads as
+   a note rather than another tile. */
+.insight {
+  border-left: 2px solid var(--cool);
+}
+
+.pair-hint {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--cool);
+  text-decoration: none;
+}
+
+.pair-hint:hover {
+  text-decoration: underline;
+}
+
 /* --- Submission guidance -------------------------------------------------- */
 
 .example {

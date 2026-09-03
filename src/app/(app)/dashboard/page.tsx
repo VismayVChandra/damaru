@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import ProblemCard from "@/components/ProblemCard";
 import { api } from "@/lib/client";
 import { checklistProgress, idleDays } from "@/lib/activity";
+import { recurringGap } from "@/lib/pairing";
+import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import type { Problem, Profile } from "@/lib/types";
 
 const FILTERS: { id: "all" | Problem["status"]; label: string }[] = [
@@ -50,6 +52,8 @@ export default function DashboardPage() {
     const logged = problems.reduce((n, p) => n + (p.progress?.length ?? 0), 0);
     return { shipped, building, idle, ticks, logged };
   }, [problems]);
+
+  const gap = useMemo(() => recurringGap(problems), [problems]);
 
   const shown = filter === "all" ? problems : problems.filter((p) => p.status === filter);
 
@@ -126,6 +130,20 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      )}
+
+      {gap && (
+        <section className="card section insight">
+          <div className="block-label">A pattern worth noticing</div>
+          <p style={{ marginTop: 8, fontSize: 15.5 }}>
+            <b>{CATEGORY_LABELS[gap.category]}</b> has been the stretch in {gap.count} of your{" "}
+            {gap.total} problems.{" "}
+            <Link href="/pair" style={{ color: "var(--ember)" }}>
+              See who covers it
+            </Link>
+            .
+          </p>
+        </section>
       )}
 
       <div className="row section" style={{ gap: 8 }}>

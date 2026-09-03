@@ -48,6 +48,8 @@ export interface Profile {
   appetite: Appetite;
   /** Read-only here - set by hand in the database, never through the API. */
   isAdmin: boolean;
+  /** Whether this person is offered to others as a possible collaborator. */
+  discoverable: boolean;
   createdAt: string;
   updatedAt: string;
 }

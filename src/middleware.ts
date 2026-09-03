@@ -34,6 +34,13 @@ export async function middleware(request: NextRequest) {
   // Touching getUser() is what actually triggers the refresh.
   await supabase.auth.getUser();
 
+  // Every API response here is per-account and mutable - a profile edit, a
+  // ticked checkbox, a friction accepted. Without this the browser applies
+  // heuristic caching and can serve a stale read straight after a write.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+  }
+
   return response;
 }
 

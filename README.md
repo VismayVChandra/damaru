@@ -171,6 +171,30 @@ change.
 
 ---
 
+## Pairing
+
+Every problem the generator issues already knows which skill categories it would
+stretch the person on — `fit.ts` computes it to render one chip and then throws
+it away. `/pair` points that data outward: who covers what you don't, and what
+you cover for them.
+
+Two rules the implementation holds to, because this is the feature that can land
+badly socially:
+
+- **Complement, never ranking.** `findComplements()` has no notion of a stronger
+  or weaker member and produces no score you could sort people by. The unit is
+  always a pair, and mutual pairs sort above one-way ones — which are labelled
+  as favours rather than quietly mixed in.
+- **Being listed is the person's own call.** `profiles.discoverable` defaults on
+  but is toggleable from the profile page or `/pair`. Only a handle and skill
+  categories are ever exposed; profiles hold no email.
+
+The dashboard also surfaces a recurring-gap note ("design has been the stretch in
+4 of your 6 problems"). It is drawn from problems already issued, and stays
+silent until a category has appeared more than once.
+
+---
+
 ## Contributing frictions
 
 The catalogue is the quality lever. Every friction that shipped originally was
@@ -225,6 +249,9 @@ src/
       profile/                skills, interests, constraints
       generate/                draw new problems
       dashboard/               your problems + status + notes
+      pair/                     who complements you
+      submit/                    propose a friction
+      admin/frictions/            review queue (is_admin only)
     browse/                 public club feed (no auth required)
     api/
       me/                    GET current session's user + profile
@@ -236,6 +263,8 @@ src/
   lib/
     types.ts                shared domain types
     db.ts                   Postgres data access via the service-role client
+    activity.ts              staleness + checklist progress (shared client/server)
+    pairing.ts                complement + recurring-gap logic
     supabase/
       server.ts               session-aware client (reads cookies, respects RLS)
       admin.ts                 service-role client (bypasses RLS - server only)

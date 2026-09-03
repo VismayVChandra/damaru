@@ -30,6 +30,7 @@ interface ProfileRow {
   team_size: Profile["teamSize"];
   appetite: Profile["appetite"];
   is_admin: boolean;
+  discoverable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +47,7 @@ function rowToProfile(row: ProfileRow): Profile {
     teamSize: row.team_size,
     appetite: row.appetite,
     isAdmin: row.is_admin,
+    discoverable: row.discoverable,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -74,6 +76,7 @@ export async function upsertProfile(profile: Profile): Promise<Profile> {
         time_budget: profile.timeBudget,
         team_size: profile.teamSize,
         appetite: profile.appetite,
+        discoverable: profile.discoverable,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
@@ -433,4 +436,40 @@ export async function countAcceptedFrictions(): Promise<number> {
 
   if (error) throw error;
   return count ?? 0;
+}
+
+// --- Pairing -------------------------------------------------------------
+
+/**
+ * Members who have opted into being listed as possible collaborators.
+ *
+ * Returns full profiles because the complement calculation needs their skill
+ * levels - but profiles hold no email or any other contact detail, so the
+ * caller is only ever exposing a handle, a display name, and what someone
+ * said they can do.
+ */
+export async function listDiscoverableProfiles(): Promise<Profile[]> {
+  const { data, error } = await getAdminClient()
+    .from("profiles")
+    .select("*")
+    .eq("discoverable", true);
+
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToProfile(r as ProfileRow));
+}
+
+/** How many problems each profile is actively building, for pairing context. */
+export async function countBuildingByProfile(): Promise<Map<string, number>> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("profile_id")
+    .eq("status", "building");
+
+  if (error) throw error;
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const id = (row as { profile_id: string }).profile_id;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
 }

@@ -22,6 +22,7 @@ export interface Database {
           team_size: Profile["teamSize"];
           appetite: Profile["appetite"];
           is_admin: boolean;
+          discoverable: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -35,6 +36,7 @@ export interface Database {
           time_budget: Profile["timeBudget"];
           team_size: Profile["teamSize"];
           appetite: Profile["appetite"];
+          discoverable?: boolean;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;

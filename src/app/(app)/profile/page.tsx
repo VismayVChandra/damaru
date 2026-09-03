@@ -39,6 +39,7 @@ export default function ProfilePage() {
   const [timeBudget, setTimeBudget] = useState<TimeBudget>("twoweeks");
   const [teamSize, setTeamSize] = useState<TeamSize>("solo");
   const [appetite, setAppetite] = useState<Appetite>("stretch");
+  const [discoverable, setDiscoverable] = useState(true);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "saving">("loading");
@@ -58,6 +59,7 @@ export default function ProfilePage() {
           setTimeBudget(profile.timeBudget);
           setTeamSize(profile.teamSize);
           setAppetite(profile.appetite);
+          setDiscoverable(profile.discoverable);
         } else if (user?.email) {
           // A brand-new account - suggest a handle from the email as a
           // starting point, still fully editable.
@@ -123,6 +125,7 @@ export default function ProfilePage() {
           timeBudget,
           teamSize,
           appetite,
+          discoverable,
         }),
       });
       router.push("/generate");
@@ -360,6 +363,31 @@ export default function ProfilePage() {
                   {o.label}
                 </button>
               ))}
+            </div>
+          </div>
+          <div>
+            <div className="label">Can other people see you as a collaborator?</div>
+            <p className="faint" style={{ fontSize: 12, marginBottom: 10 }}>
+              Pairing shows your handle and the skill areas you cover to other members. Never your
+              email.
+            </p>
+            <div className="chip-wrap">
+              <button
+                type="button"
+                className="chip"
+                data-on={discoverable ? "true" : "false"}
+                onClick={() => setDiscoverable(true)}
+              >
+                List me
+              </button>
+              <button
+                type="button"
+                className="chip"
+                data-on={!discoverable ? "true" : "false"}
+                onClick={() => setDiscoverable(false)}
+              >
+                Keep me hidden
+              </button>
             </div>
           </div>
           <div>

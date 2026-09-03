@@ -21,6 +21,8 @@ create table profiles (
   -- Set by hand in the database only. The app never writes this column, so
   -- admin rights cannot be granted through the API.
   is_admin       boolean not null default false,
+  -- Whether this person appears as a potential collaborator to others.
+  discoverable   boolean not null default true,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
 
