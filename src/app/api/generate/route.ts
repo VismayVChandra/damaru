@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { allFingerprints, getProfileById, insertProblem } from "@/lib/db";
-import { generateProblems } from "@/lib/engine";
+import { allFingerprints, getProfileById, insertProblem, listAcceptedFrictions } from "@/lib/db";
+import { generateProblems, indexFrictions } from "@/lib/engine";
 import type { Problem } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -26,13 +26,15 @@ export async function POST(request: Request) {
   const requested = Number(body.count);
   const count = Number.isFinite(requested) ? Math.max(1, Math.min(5, Math.trunc(requested))) : 3;
 
-  const issued = await allFingerprints();
+  const [issued, catalogue] = await Promise.all([allFingerprints(), listAcceptedFrictions()]);
+  const frictions = indexFrictions(catalogue);
   const saved: Problem[] = [];
 
   // Each pass excludes everything already issued globally plus anything this
   // request has just claimed, so a batch never repeats itself either.
   for (let pass = 0; pass < 4 && saved.length < count; pass++) {
     const drafts = generateProblems(profile, {
+      frictions,
       count: count - saved.length,
       excludeFingerprints: issued,
       seed: `${profile.id}:${Date.now()}:${pass}:${Math.random()}`,

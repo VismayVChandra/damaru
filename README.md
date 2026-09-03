@@ -15,8 +15,11 @@ wait ~2 min for it to provision.
 
 **2. Run the schema.** In the project, left sidebar → **SQL Editor** → **New query** →
 paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
-This creates the `profiles` and `problems` tables and their Row Level Security
-policies.
+Then run [`supabase/migrations/002b_seed_frictions.sql`](supabase/migrations/002b_seed_frictions.sql)
+the same way, which loads the 144 starting frictions into the catalogue.
+
+An existing project instead runs the numbered files in `supabase/migrations/` in
+order, once each.
 
 **3. Get your credentials.** **Project Settings → API**. Copy the **Project URL**, the
 **anon / public** key, and the **service_role** key (click reveal).
@@ -63,10 +66,17 @@ constraint. Damaru assembles every problem from six bound parts:
 |---|---|---|
 | **Domain** | The area the person cares about | `catalog/domains.ts` |
 | **Actor** | A specific kind of person who feels the pain | bound to each friction |
-| **Friction** | A concrete, unglamorous, recurring annoyance | bound to each domain |
+| **Friction** | A concrete, unglamorous, recurring annoyance | the `frictions` table |
 | **Mechanic** | The technical crux — what's actually interesting to build | `catalog/blocks.ts` |
 | **Artifact** | The shipping format: web app, CLI, bot, device, investigation | `catalog/blocks.ts` |
 | **Twist** | A constraint that forces it somewhere non-obvious | `catalog/blocks.ts` |
+
+Frictions live in Postgres; domains, mechanics, artifacts and twists stay in
+code. That split is deliberate: the structural pieces change rarely, but
+frictions are the thing club members write, and an accepted submission reaches
+the generator immediately with no deploy. The engine itself stays a pure,
+synchronous function — the catalogue is passed in by the route that loads it,
+not fetched from inside `generateProblems()`.
 
 **The parts are bound, not sampled independently.** Each friction names the actor
 who feels it and the mechanics that could plausibly answer it; each mechanic names
@@ -74,9 +84,10 @@ the artifact shapes it can sensibly ship as. Sampling those freely is how a
 generator ends up proposing a playable game to fix a timetable clash — coherent
 grammar, nonsense content. The bindings are the difference.
 
-The valid space is currently **40,592 distinct problems**. The landing page counts
-it from the catalogue itself (`combinationSpace()`), so the number stays honest as
-you add content.
+The landing page counts the valid space from the live catalogue
+(`combinationSpace()`), so the figure moves the moment a friction is accepted —
+it starts at 40,992 with the 144 seeded frictions, and every new one adds
+roughly two hundred.
 
 ### Doability
 
@@ -160,6 +171,29 @@ change.
 
 ---
 
+## Contributing frictions
+
+The catalogue is the quality lever. Every friction that shipped originally was
+written by one person guessing at what annoys people; the ones worth building
+against are the ones somebody has actually lived with.
+
+- **`/submit`** — any signed-in member proposes one: a domain, who feels it, what
+  is broken, and which mechanics could plausibly answer it. The form teaches the
+  bar inline, because a vague friction is worse than none.
+- **`/admin/frictions`** — the review queue. Accepting puts it in the generator
+  immediately.
+
+Admin is set in the database and nowhere else:
+
+```sql
+update profiles set is_admin = true where handle = 'your-handle';
+```
+
+`is_admin` is deliberately absent from the profile upsert's column list, so it
+survives profile edits and cannot be granted through the API.
+
+---
+
 ## Deploying to Vercel
 
 1. Push this repo to GitHub (already done if you're reading this from the repo).
@@ -179,6 +213,7 @@ SQLite version could not run on Vercel's read-only, ephemeral filesystem at all)
 ```
 supabase/
   schema.sql             tables, constraints, RLS policies - run once per project
+  migrations/            numbered deltas for a project that already has the schema
 src/
   middleware.ts           refreshes the Supabase session cookie on every request
   app/
@@ -208,7 +243,7 @@ src/
       types.ts                  hand-written Database type for supabase-js
     catalog/
       skills.ts               73 skills across 11 categories
-      domains.ts               18 domains, 144 actor-bound frictions
+      domains.ts               18 domains (frictions live in Postgres)
       blocks.ts                 22 mechanics, 12 artifacts, 16 twists
     engine/
       index.ts                candidate selection  <- the LLM seam
@@ -225,9 +260,11 @@ src/
 
 Nearly all the quality lives in the catalogue, not the code.
 
-**Add a domain** — append to `DOMAINS` in `catalog/domains.ts`. Each friction needs
-an `actor`, a lowercase clause `text` that reads after "…so that it is no longer
-true that", and `mechanics` listing the mechanic ids that could answer it.
+**Add a friction** — use `/submit` in the app. They live in the database now, so
+no code change or deploy is involved.
+
+**Add a domain** — append to `DOMAINS` in `catalog/domains.ts` (id, label, icon,
+signals). Frictions then get attached to it through `/submit`.
 
 **Add a mechanic** — append to `MECHANICS` in `catalog/blocks.ts`, list the
 `artifacts` it can ship as, the skill categories it `requires`, and add a short
@@ -257,6 +294,10 @@ is the product.
 database. It lives only in `.env.local` (local) and Vercel's environment variable
 store (production) via `server-only`-guarded modules — never commit it, never put
 it in a client component, never paste it anywhere but an env var.
+
+**Rejecting a submission is silent.** The submitter sees the state change on
+`/submit`, but nothing tells them why. For a club where you can just talk to the
+person, that is probably right; it would not be on a larger tool.
 
 **Changing the schema means updating two places.** `supabase/schema.sql` (the
 actual database) and `src/lib/supabase/types.ts` (the hand-written TypeScript

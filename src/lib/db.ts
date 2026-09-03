@@ -1,6 +1,13 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase/admin";
-import type { Checklist, Problem, ProblemPayload, ProgressEntry, Profile } from "@/lib/types";
+import type {
+  Checklist,
+  FrictionRecord,
+  Problem,
+  ProblemPayload,
+  ProgressEntry,
+  Profile,
+} from "@/lib/types";
 
 /**
  * All data access goes through the service-role client and bypasses RLS - the
@@ -22,6 +29,7 @@ interface ProfileRow {
   time_budget: Profile["timeBudget"];
   team_size: Profile["teamSize"];
   appetite: Profile["appetite"];
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +45,7 @@ function rowToProfile(row: ProfileRow): Profile {
     timeBudget: row.time_budget,
     teamSize: row.team_size,
     appetite: row.appetite,
+    isAdmin: row.is_admin,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -46,6 +55,10 @@ function rowToProfile(row: ProfileRow): Profile {
  * Create or update a profile. `profile.id` must be the caller's own
  * `auth.uid()` - every route that calls this sets it from the verified
  * session, never from client input.
+ *
+ * `is_admin` is deliberately absent from the column list below: an upsert
+ * only touches the columns it names, so admin status cannot be granted or
+ * revoked through this path no matter what the client sends.
  */
 export async function upsertProfile(profile: Profile): Promise<Profile> {
   const { data, error } = await getAdminClient()
@@ -305,4 +318,119 @@ export async function listFeed(limit = 40): Promise<(Problem & { handle: string 
     const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
     return { ...rowToProblem(row as ProblemRow), handle: profiles?.handle ?? "unknown" };
   });
+}
+
+// --- Frictions -----------------------------------------------------------
+
+interface FrictionRow {
+  id: string;
+  domain_id: string;
+  actor: string;
+  text: string;
+  mechanics: string[];
+  status: FrictionRecord["status"];
+  submitted_by: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  profiles?: { handle: string } | null;
+}
+
+function rowToFriction(row: FrictionRow): FrictionRecord {
+  return {
+    id: row.id,
+    domainId: row.domain_id,
+    actor: row.actor,
+    text: row.text,
+    mechanics: row.mechanics,
+    status: row.status,
+    submittedBy: row.submitted_by,
+    submittedByHandle: row.profiles?.handle ?? null,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
+  };
+}
+
+/** The catalogue the generator draws from. */
+export async function listAcceptedFrictions(): Promise<FrictionRecord[]> {
+  const { data, error } = await getAdminClient()
+    .from("frictions")
+    .select("*")
+    .eq("status", "accepted");
+
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToFriction(r as FrictionRow));
+}
+
+/** Review queue, newest first, with the submitter's handle for attribution. */
+export async function listFrictionsByStatus(
+  status: FrictionRecord["status"],
+): Promise<FrictionRecord[]> {
+  const { data, error } = await getAdminClient()
+    .from("frictions")
+    .select("*, profiles(handle)")
+    .eq("status", status)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToFriction(r as FrictionRow));
+}
+
+export async function listFrictionsSubmittedBy(profileId: string): Promise<FrictionRecord[]> {
+  const { data, error } = await getAdminClient()
+    .from("frictions")
+    .select("*, profiles(handle)")
+    .eq("submitted_by", profileId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToFriction(r as FrictionRow));
+}
+
+export async function submitFriction(input: {
+  domainId: string;
+  actor: string;
+  text: string;
+  mechanics: string[];
+  submittedBy: string;
+}): Promise<FrictionRecord> {
+  const { data, error } = await getAdminClient()
+    .from("frictions")
+    .insert({
+      domain_id: input.domainId,
+      actor: input.actor,
+      text: input.text,
+      mechanics: input.mechanics,
+      status: "pending",
+      submitted_by: input.submittedBy,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return rowToFriction(data as FrictionRow);
+}
+
+export async function reviewFriction(
+  id: string,
+  status: "accepted" | "rejected",
+): Promise<FrictionRecord | null> {
+  const { data, error } = await getAdminClient()
+    .from("frictions")
+    .update({ status, reviewed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? rowToFriction(data as FrictionRow) : null;
+}
+
+export async function countAcceptedFrictions(): Promise<number> {
+  const { count, error } = await getAdminClient()
+    .from("frictions")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "accepted");
+
+  if (error) throw error;
+  return count ?? 0;
 }

@@ -1,4 +1,4 @@
-import type { Checklist, Problem, ProblemPayload, Profile } from "@/lib/types";
+import type { Checklist, FrictionRecord, Problem, ProblemPayload, Profile } from "@/lib/types";
 
 /**
  * Hand-written to match supabase/schema.sql, in the same shape the Supabase
@@ -21,6 +21,7 @@ export interface Database {
           time_budget: Profile["timeBudget"];
           team_size: Profile["teamSize"];
           appetite: Profile["appetite"];
+          is_admin: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -75,6 +76,40 @@ export interface Database {
           {
             foreignKeyName: "problems_profile_id_fkey";
             columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      frictions: {
+        Row: {
+          id: string;
+          domain_id: string;
+          actor: string;
+          text: string;
+          mechanics: string[];
+          status: FrictionRecord["status"];
+          submitted_by: string | null;
+          created_at: string;
+          reviewed_at: string | null;
+        };
+        Insert: {
+          domain_id: string;
+          actor: string;
+          text: string;
+          mechanics: string[];
+          status?: FrictionRecord["status"];
+          submitted_by?: string | null;
+        };
+        Update: {
+          status?: FrictionRecord["status"];
+          reviewed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "frictions_submitted_by_fkey";
+            columns: ["submitted_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];

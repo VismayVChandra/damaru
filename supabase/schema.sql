@@ -18,6 +18,9 @@ create table profiles (
   time_budget    text not null default 'twoweeks',
   team_size      text not null default 'solo',
   appetite       text not null default 'stretch',
+  -- Set by hand in the database only. The app never writes this column, so
+  -- admin rights cannot be granted through the API.
+  is_admin       boolean not null default false,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
 
@@ -54,6 +57,32 @@ create table progress_entries (
   constraint body_not_empty check (length(trim(body)) > 0)
 );
 
+-- The friction catalogue the generator draws from. Domains, mechanics,
+-- artifacts and twists stay in code (structural, rarely change); frictions
+-- live here so a club member can submit one and have it reach the generator
+-- once accepted, without a deploy.
+create table frictions (
+  id           uuid primary key default gen_random_uuid(),
+  domain_id    text not null,
+  actor        text not null,
+  text         text not null,
+  mechanics    text[] not null,
+  status       text not null default 'pending',
+  -- null for the frictions seeded from the original hand-written catalogue.
+  submitted_by uuid references profiles(id) on delete set null,
+  created_at   timestamptz not null default now(),
+  reviewed_at  timestamptz,
+
+  constraint friction_status_valid check (status in ('pending', 'accepted', 'rejected')),
+  constraint friction_actor_len    check (char_length(btrim(actor)) between 3 and 120),
+  constraint friction_text_len     check (char_length(btrim(text)) between 20 and 400),
+  constraint friction_mechanics    check (array_length(mechanics, 1) between 1 and 8)
+);
+
+create index idx_frictions_status on frictions(status);
+create index idx_frictions_submitter on frictions(submitted_by);
+create unique index idx_frictions_unique on frictions(domain_id, lower(btrim(text)));
+
 create index idx_problems_profile on problems(profile_id);
 create index idx_problems_created on problems(created_at desc);
 create index idx_progress_problem on progress_entries(problem_id, created_at desc);
@@ -67,6 +96,7 @@ create index idx_progress_problem on progress_entries(problem_id, created_at des
 alter table profiles enable row level security;
 alter table problems enable row level security;
 alter table progress_entries enable row level security;
+alter table frictions enable row level security;
 
 create policy "profiles are privately owned"
   on profiles for all
@@ -111,3 +141,21 @@ create policy "progress entries are owned via their problem"
 create policy "progress entries are publicly readable"
   on progress_entries for select
   using (true);
+
+-- The accepted catalogue is public - it is what the generator draws from.
+-- Members submit as pending and cannot self-approve; review happens
+-- server-side behind an is_admin check.
+create policy "accepted frictions are publicly readable"
+  on frictions for select
+  using (status = 'accepted');
+
+create policy "submitters can read their own"
+  on frictions for select
+  using (auth.uid() = submitted_by);
+
+create policy "members submit as pending"
+  on frictions for insert
+  with check (auth.uid() = submitted_by and status = 'pending');
+
+-- A fresh project should now run supabase/migrations/002b_seed_frictions.sql
+-- to load the 144 starting frictions into the table above.

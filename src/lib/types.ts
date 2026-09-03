@@ -46,6 +46,8 @@ export interface Profile {
   timeBudget: TimeBudget;
   teamSize: TeamSize;
   appetite: Appetite;
+  /** Read-only here - set by hand in the database, never through the API. */
+  isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,9 +70,25 @@ export interface Domain {
   id: string;
   label: string;
   icon: string;
-  frictions: Friction[];
   /** Realistic places data could come from. */
   signals: string[];
+}
+
+export type FrictionStatus = "pending" | "accepted" | "rejected";
+
+/**
+ * A friction as it exists in the database - the catalogue the generator draws
+ * from, plus the review metadata that lets club members contribute to it.
+ */
+export interface FrictionRecord extends Friction {
+  id: string;
+  domainId: string;
+  status: FrictionStatus;
+  /** Null for the frictions seeded from the original hand-written catalogue. */
+  submittedBy: string | null;
+  submittedByHandle?: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
 }
 
 /** The technical crux of a problem - what makes it interesting to build. */

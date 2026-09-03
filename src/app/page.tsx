@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { countProblems, countProfiles } from "@/lib/db";
-import { combinationSpace } from "@/lib/engine";
+import { countProblems, countProfiles, listAcceptedFrictions } from "@/lib/db";
+import { combinationSpace, indexFrictions } from "@/lib/engine";
 import { DOMAINS } from "@/lib/catalog/domains";
 import { SKILLS } from "@/lib/catalog/skills";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -26,12 +26,13 @@ const STEPS = [
 ];
 
 export default async function Home() {
-  const [profiles, problems, user] = await Promise.all([
+  const [profiles, problems, catalogue, user] = await Promise.all([
     countProfiles(),
     countProblems(),
+    listAcceptedFrictions(),
     getCurrentUser(),
   ]);
-  const space = combinationSpace();
+  const space = combinationSpace(indexFrictions(catalogue));
 
   return (
     <main className="shell">
@@ -80,11 +81,14 @@ export default async function Home() {
         </div>
         <div>
           <div className="stat">
-            {DOMAINS.length}
-            <span className="faint" style={{ fontSize: 15 }}> / {SKILLS.length}</span>
+            {catalogue.length}
+            <span className="faint" style={{ fontSize: 15 }}>
+              {" "}
+              / {DOMAINS.length} / {SKILLS.length}
+            </span>
           </div>
           <div className="faint" style={{ fontSize: 13 }}>
-            domains / skills in the catalogue
+            frictions / domains / skills
           </div>
         </div>
       </section>

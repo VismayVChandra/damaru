@@ -692,6 +692,37 @@ h3 {
   border-color: var(--warn);
 }
 
+/* --- Submission guidance -------------------------------------------------- */
+
+.example {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.example .mono {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+
+.example.is-bad .mono { color: var(--text-faint); }
+.example.is-bad span:last-child { color: var(--text-faint); }
+.example.is-good { border-color: var(--ember-line); background: var(--ember-soft); }
+.example.is-good .mono { color: var(--ember); }
+
+@media (max-width: 560px) {
+  .example { grid-template-columns: 1fr; gap: 4px; }
+}
+
 /* --- Feed ---------------------------------------------------------------- */
 
 /* The meter is a <div> in cards but has to be a <span> inline in feed rows,

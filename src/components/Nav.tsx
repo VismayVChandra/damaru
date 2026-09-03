@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/generate", label: "Generate" },
   { href: "/dashboard", label: "My problems" },
   { href: "/browse", label: "Club feed" },
+  { href: "/submit", label: "Submit a friction" },
 ];
 
 interface Me {
@@ -48,6 +49,15 @@ export default function Nav() {
             {l.label}
           </Link>
         ))}
+        {me?.profile?.isAdmin && (
+          <Link
+            href="/admin/frictions"
+            className="nav-link"
+            data-active={pathname === "/admin/frictions" ? "true" : "false"}
+          >
+            Review
+          </Link>
+        )}
         <span className="nav-spacer" />
         {me === undefined ? null : me.user ? (
           <form action={logout} className="row" style={{ gap: 8 }}>

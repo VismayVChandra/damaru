@@ -11,7 +11,26 @@ export type GeneratedProblem = Omit<
   "id" | "status" | "notes" | "checklist" | "progress" | "createdAt"
 >;
 
+/**
+ * The friction catalogue, grouped by domain. Passed in rather than loaded
+ * here: frictions now live in Postgres, and keeping the engine a pure
+ * function of (profile, catalogue) leaves it synchronous and testable.
+ */
+export type FrictionIndex = Map<string, Friction[]>;
+
+export function indexFrictions(frictions: { domainId: string }[]): FrictionIndex {
+  const index: FrictionIndex = new Map();
+  for (const f of frictions as (Friction & { domainId: string })[]) {
+    const list = index.get(f.domainId);
+    if (list) list.push(f);
+    else index.set(f.domainId, [f]);
+  }
+  return index;
+}
+
 export interface GenerateOptions {
+  /** The accepted friction catalogue, grouped by domain. */
+  frictions: FrictionIndex;
   count?: number;
   /** Fingerprints already handed out to anyone, globally. */
   excludeFingerprints?: Set<string>;
@@ -71,12 +90,18 @@ function rankCombosByMechanic(profile: Profile, bar: DoabilityBar): Map<string, 
   return byMechanic;
 }
 
-/** Interests the person chose, falling back to the whole catalogue. */
-function candidateDomains(profile: Profile) {
+/**
+ * Interests the person chose, falling back to the whole catalogue - minus any
+ * domain that currently has no accepted frictions, which would otherwise be a
+ * dead end the sampler keeps rediscovering.
+ */
+function candidateDomains(profile: Profile, frictions: FrictionIndex) {
+  const stocked = (d: { id: string }) => (frictions.get(d.id)?.length ?? 0) > 0;
   const chosen = profile.interests
     .map((id) => DOMAIN_BY_ID.get(id))
-    .filter((d): d is NonNullable<typeof d> => Boolean(d));
-  return chosen.length > 0 ? chosen : DOMAINS;
+    .filter((d): d is NonNullable<typeof d> => Boolean(d))
+    .filter(stocked);
+  return chosen.length > 0 ? chosen : DOMAINS.filter(stocked);
 }
 
 /** Bias a pick toward the front of a sorted list without ever locking onto it. */
@@ -122,7 +147,8 @@ const RELAXATIONS: Relaxation[] = [
   },
 ];
 
-export function generateProblems(profile: Profile, opts: GenerateOptions = {}): GeneratedProblem[] {
+export function generateProblems(profile: Profile, opts: GenerateOptions): GeneratedProblem[] {
+  const frictions = opts.frictions;
   const count = opts.count ?? 3;
   const excluded = opts.excludeFingerprints ?? new Set<string>();
   const rng = seededRandom(opts.seed ?? `${profile.id}:${Date.now()}`);
@@ -140,7 +166,11 @@ export function generateProblems(profile: Profile, opts: GenerateOptions = {}): 
     const byMechanic = rankCombosByMechanic(profile, relax.bar);
     if (byMechanic.size === 0) return;
 
-    const domains = relax.allDomains ? DOMAINS : candidateDomains(profile);
+    const stocked = (d: { id: string }) => (frictions.get(d.id)?.length ?? 0) > 0;
+    const domains = relax.allDomains
+      ? DOMAINS.filter(stocked)
+      : candidateDomains(profile, frictions);
+    if (domains.length === 0) return;
 
     const MAX_ATTEMPTS = 1200;
     let attempts = 0;
@@ -153,7 +183,9 @@ export function generateProblems(profile: Profile, opts: GenerateOptions = {}): 
       const freshDomains = domains.filter((d) => !usedDomains.has(d.id));
       const domain = pick(rng, freshDomains.length > 0 ? freshDomains : domains);
 
-      const friction: Friction = pick(rng, domain.frictions);
+      const pool = frictions.get(domain.id);
+      if (!pool || pool.length === 0) continue;
+      const friction: Friction = pick(rng, pool);
       const frictionKey = `${domain.id}:${friction.text}`;
       if (usedFrictions.has(frictionKey)) continue;
 
@@ -225,10 +257,10 @@ export function generateProblems(profile: Profile, opts: GenerateOptions = {}): 
  * Size of the *valid* space — only combinations the catalogue actually permits,
  * so the number on the landing page is honest rather than flattering.
  */
-export function combinationSpace(): number {
+export function combinationSpace(frictions: FrictionIndex): number {
   let total = 0;
-  for (const domain of DOMAINS) {
-    for (const friction of domain.frictions) {
+  for (const pool of frictions.values()) {
+    for (const friction of pool) {
       for (const mechanicId of friction.mechanics) {
         const mechanic = MECHANIC_BY_ID.get(mechanicId);
         if (mechanic) total += mechanic.artifacts.length;

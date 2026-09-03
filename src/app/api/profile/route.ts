@@ -115,6 +115,9 @@ export async function POST(request: Request) {
     timeBudget,
     teamSize,
     appetite,
+    // Carried through, never taken from the request - upsertProfile does not
+    // write this column at all, so admin status survives a profile edit.
+    isAdmin: existing?.isAdmin ?? false,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
