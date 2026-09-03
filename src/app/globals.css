@@ -475,6 +475,11 @@ h3 {
   background: linear-gradient(90deg, var(--ember), color-mix(in srgb, var(--ember) 55%, var(--cool)));
 }
 
+/* Completion reads as its own measure, not more of the fit score. */
+.meter-fill.is-done {
+  background: var(--good);
+}
+
 .pips {
   display: inline-flex;
   gap: 3px;
@@ -565,7 +570,8 @@ h3 {
   line-height: 1.55;
 }
 
-.checklist li::before {
+/* Plain bullet list - signals, stretch goals, anything not tickable. */
+.checklist.is-plain li::before {
   content: "";
   flex: none;
   width: 6px;
@@ -576,8 +582,147 @@ h3 {
   opacity: 0.65;
 }
 
-.checklist-cool li::before {
+/* --- Tickable items ------------------------------------------------------ */
+
+.check-btn {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.check-btn:hover .check-box {
+  border-color: var(--ember);
+}
+
+.check-btn:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 3px;
+}
+
+.check-box {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 4px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--panel);
+  position: relative;
+  transition: background 110ms ease, border-color 110ms ease;
+}
+
+.check-box[data-done="true"] {
+  background: var(--ember);
+  border-color: var(--ember);
+}
+
+.check-box[data-done="true"]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--panel);
+  border-width: 0 2px 2px 0;
+  transform: rotate(42deg);
+}
+
+.checklist[data-tone="cool"] .check-box[data-done="true"] {
   background: var(--cool);
+  border-color: var(--cool);
+}
+
+.checklist li[data-done="true"] {
+  color: var(--text-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+/* --- Progress log -------------------------------------------------------- */
+
+.log-compose {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.log-compose .input {
+  flex: 1;
+}
+
+.log-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-left: 2px solid var(--border);
+}
+
+.log-list li {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0 8px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.log-when {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.chip-static.is-idle {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+/* --- Feed ---------------------------------------------------------------- */
+
+/* The meter is a <div> in cards but has to be a <span> inline in feed rows,
+   which sit inside a <span>-only summary line. */
+span.meter {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.feed-latest {
+  margin: 12px 0 0;
+  padding-left: 11px;
+  border-left: 2px solid var(--border-strong);
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.feed-latest .mono {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 6px;
+}
+
+@media (max-width: 560px) {
+  .log-list li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 
 .problem-foot {

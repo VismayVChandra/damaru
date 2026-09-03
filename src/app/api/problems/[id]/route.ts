@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getProblem, updateProblem } from "@/lib/db";
-import type { Problem } from "@/lib/types";
+import type { Checklist, Problem } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,12 +37,25 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const patch: { status?: Problem["status"]; notes?: string } = {};
+  const patch: { status?: Problem["status"]; notes?: string; checklist?: Checklist } = {};
   if (typeof body.status === "string" && STATUSES.includes(body.status as Problem["status"])) {
     patch.status = body.status as Problem["status"];
   }
   if (typeof body.notes === "string") {
     patch.notes = body.notes.slice(0, 4000);
+  }
+  if (body.checklist && typeof body.checklist === "object" && !Array.isArray(body.checklist)) {
+    // Keep only keys this problem actually has, so a client cannot stuff
+    // arbitrary data into the column.
+    const valid = new Set([
+      ...existing.requirements.map((_, i) => `req:${i}`),
+      ...existing.successCriteria.map((_, i) => `success:${i}`),
+    ]);
+    patch.checklist = Object.fromEntries(
+      Object.entries(body.checklist as Record<string, unknown>)
+        .filter(([k, v]) => valid.has(k) && v === true)
+        .map(([k]) => [k, true]),
+    );
   }
 
   const updated = await updateProblem(id, patch);

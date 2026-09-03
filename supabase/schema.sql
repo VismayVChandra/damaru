@@ -34,6 +34,7 @@ create table problems (
   payload     jsonb not null,
   status      text not null default 'new',
   notes       text not null default '',
+  checklist   jsonb not null default '{}'::jsonb,
   domain_id   text not null,
   fit         real not null,
   difficulty  int not null,
@@ -42,8 +43,20 @@ create table problems (
   constraint status_valid check (status in ('new', 'saved', 'building', 'shipped', 'passed'))
 );
 
+-- One line per "what moved". A status dropdown records where something ended
+-- up; this records that it is actually moving.
+create table progress_entries (
+  id         uuid primary key default gen_random_uuid(),
+  problem_id uuid not null references problems(id) on delete cascade,
+  body       text not null,
+  created_at timestamptz not null default now(),
+
+  constraint body_not_empty check (length(trim(body)) > 0)
+);
+
 create index idx_problems_profile on problems(profile_id);
 create index idx_problems_created on problems(created_at desc);
+create index idx_progress_problem on progress_entries(problem_id, created_at desc);
 
 -- Row Level Security. The app server talks to Postgres with the service-role
 -- key and bypasses RLS entirely (it is the trusted gatekeeper - every API
@@ -53,6 +66,7 @@ create index idx_problems_created on problems(created_at desc);
 -- policies are what stop it from reading or writing anyone else's data.
 alter table profiles enable row level security;
 alter table problems enable row level security;
+alter table progress_entries enable row level security;
 
 create policy "profiles are privately owned"
   on profiles for all
@@ -75,4 +89,25 @@ create policy "problems are publicly readable"
 
 create policy "handles are publicly readable"
   on profiles for select
+  using (true);
+
+-- Progress entries inherit ownership from the problem they belong to, and are
+-- publicly readable for the same reason the feed is.
+create policy "progress entries are owned via their problem"
+  on progress_entries for all
+  using (
+    exists (
+      select 1 from problems p
+      where p.id = progress_entries.problem_id and p.profile_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from problems p
+      where p.id = progress_entries.problem_id and p.profile_id = auth.uid()
+    )
+  );
+
+create policy "progress entries are publicly readable"
+  on progress_entries for select
   using (true);

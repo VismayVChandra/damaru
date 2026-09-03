@@ -127,6 +127,31 @@ export interface FitBreakdown {
   estimate: string;
 }
 
+/**
+ * The immutable half of a problem - everything decided at issue time, stored
+ * as a single jsonb column. Status, notes, checklist and progress are mutable
+ * and live in their own columns/table.
+ */
+export type ProblemPayload = Omit<
+  Problem,
+  "id" | "fingerprint" | "profileId" | "status" | "notes" | "checklist" | "progress" | "createdAt"
+>;
+
+/** One line of "what moved", appended to a problem over time. */
+export interface ProgressEntry {
+  id: string;
+  problemId: string;
+  body: string;
+  createdAt: string;
+}
+
+/**
+ * Which requirements and success criteria have been ticked off. Keyed
+ * `req:<index>` / `success:<index>` against the arrays on the problem, which
+ * never change once issued.
+ */
+export type Checklist = Record<string, boolean>;
+
 export interface Problem {
   id: string;
   /** Global uniqueness key derived from the DNA. */
@@ -149,5 +174,8 @@ export interface Problem {
   domainIcon: string;
   status: "new" | "saved" | "building" | "shipped" | "passed";
   notes: string;
+  checklist: Checklist;
+  /** Loaded alongside the problem where the view needs it; newest first. */
+  progress?: ProgressEntry[];
   createdAt: string;
 }

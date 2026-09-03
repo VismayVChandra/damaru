@@ -1,6 +1,6 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase/admin";
-import type { Problem, Profile } from "@/lib/types";
+import type { Checklist, Problem, ProblemPayload, ProgressEntry, Profile } from "@/lib/types";
 
 /**
  * All data access goes through the service-role client and bypasses RLS - the
@@ -106,14 +106,33 @@ export async function countProfiles(): Promise<number> {
 
 // --- Problems ------------------------------------------------------------
 
+interface ProgressRow {
+  id: string;
+  problem_id: string;
+  body: string;
+  created_at: string;
+}
+
 interface ProblemRow {
   id: string;
   fingerprint: string;
   profile_id: string;
-  payload: Omit<Problem, "id" | "fingerprint" | "profileId" | "status" | "notes" | "createdAt">;
+  payload: ProblemPayload;
   status: Problem["status"];
   notes: string;
+  checklist: Checklist | null;
   created_at: string;
+  /** Present only on queries that embed the relation. */
+  progress_entries?: ProgressRow[];
+}
+
+function rowToProgress(row: ProgressRow): ProgressEntry {
+  return {
+    id: row.id,
+    problemId: row.problem_id,
+    body: row.body,
+    createdAt: row.created_at,
+  };
 }
 
 function rowToProblem(row: ProblemRow): Problem {
@@ -124,9 +143,21 @@ function rowToProblem(row: ProblemRow): Problem {
     profileId: row.profile_id,
     status: row.status,
     notes: row.notes,
+    // Rows written before the checklist column existed come back null.
+    checklist: row.checklist ?? {},
+    ...(row.progress_entries
+      ? {
+          progress: [...row.progress_entries]
+            .map(rowToProgress)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        }
+      : {}),
     createdAt: row.created_at,
   };
 }
+
+/** Columns plus the embedded progress log, for views that show movement. */
+const PROBLEM_WITH_PROGRESS = "*, progress_entries(*)";
 
 /** Every fingerprint ever issued, so the same problem is never handed out twice. */
 export async function allFingerprints(): Promise<Set<string>> {
@@ -169,7 +200,19 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
 
 /** Splits a Problem into the columns insertProblem needs, keeping that function readable. */
 function packProblem(problem: Problem) {
-  const { id, fingerprint, profileId, status, notes, createdAt, dna, fit, ...rest } = problem;
+  const {
+    id,
+    fingerprint,
+    profileId,
+    status,
+    notes,
+    checklist,
+    progress,
+    createdAt,
+    dna,
+    fit,
+    ...rest
+  } = problem;
   return {
     id,
     fingerprint,
@@ -187,7 +230,7 @@ function packProblem(problem: Problem) {
 export async function getProblem(id: string): Promise<Problem | null> {
   const { data, error } = await getAdminClient()
     .from("problems")
-    .select("*")
+    .select(PROBLEM_WITH_PROGRESS)
     .eq("id", id)
     .maybeSingle();
 
@@ -198,7 +241,7 @@ export async function getProblem(id: string): Promise<Problem | null> {
 export async function listProblemsForProfile(profileId: string): Promise<Problem[]> {
   const { data, error } = await getAdminClient()
     .from("problems")
-    .select("*")
+    .select(PROBLEM_WITH_PROGRESS)
     .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
 
@@ -208,23 +251,36 @@ export async function listProblemsForProfile(profileId: string): Promise<Problem
 
 export async function updateProblem(
   id: string,
-  patch: { status?: Problem["status"]; notes?: string },
+  patch: { status?: Problem["status"]; notes?: string; checklist?: Checklist },
 ): Promise<Problem | null> {
   const existing = await getProblem(id);
   if (!existing) return null;
 
-  const { data, error } = await getAdminClient()
+  const { error } = await getAdminClient()
     .from("problems")
     .update({
       status: patch.status ?? existing.status,
       notes: patch.notes ?? existing.notes,
+      checklist: patch.checklist ?? existing.checklist,
     })
-    .eq("id", id)
+    .eq("id", id);
+
+  if (error) throw error;
+  // Re-read rather than using the update's own return, so the embedded
+  // progress log comes back with it.
+  return getProblem(id);
+}
+
+/** Append one "what moved" line to a problem. */
+export async function addProgressEntry(problemId: string, body: string): Promise<ProgressEntry> {
+  const { data, error } = await getAdminClient()
+    .from("progress_entries")
+    .insert({ problem_id: problemId, body })
     .select()
     .single();
 
   if (error) throw error;
-  return rowToProblem(data as ProblemRow);
+  return rowToProgress(data as ProgressRow);
 }
 
 export async function countProblems(): Promise<number> {
@@ -240,7 +296,7 @@ export async function countProblems(): Promise<number> {
 export async function listFeed(limit = 40): Promise<(Problem & { handle: string })[]> {
   const { data, error } = await getAdminClient()
     .from("problems")
-    .select("*, profiles(handle)")
+    .select("*, profiles(handle), progress_entries(*)")
     .order("created_at", { ascending: false })
     .limit(limit);
 

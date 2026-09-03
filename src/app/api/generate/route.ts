@@ -46,6 +46,7 @@ export async function POST(request: Request) {
         id: crypto.randomUUID(),
         status: "new",
         notes: "",
+        checklist: {},
         createdAt: new Date().toISOString(),
       };
       // A concurrent request may have taken this fingerprint between the read

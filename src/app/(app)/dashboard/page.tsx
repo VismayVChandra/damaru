@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ProblemCard from "@/components/ProblemCard";
 import { api } from "@/lib/client";
+import { checklistProgress, idleDays } from "@/lib/activity";
 import type { Problem, Profile } from "@/lib/types";
 
 const FILTERS: { id: "all" | Problem["status"]; label: string }[] = [
@@ -37,6 +38,17 @@ export default function DashboardPage() {
     const c: Record<string, number> = { all: problems.length };
     for (const p of problems) c[p.status] = (c[p.status] ?? 0) + 1;
     return c;
+  }, [problems]);
+
+  // Momentum, not inventory: what's moving, what's finished, what has gone
+  // quiet. A raw count of issued problems rewards collecting them.
+  const momentum = useMemo(() => {
+    const shipped = problems.filter((p) => p.status === "shipped").length;
+    const building = problems.filter((p) => p.status === "building").length;
+    const idle = problems.filter((p) => idleDays(p) !== null).length;
+    const ticks = problems.reduce((n, p) => n + checklistProgress(p).done, 0);
+    const logged = problems.reduce((n, p) => n + (p.progress?.length ?? 0), 0);
+    return { shipped, building, idle, ticks, logged };
   }, [problems]);
 
   const shown = filter === "all" ? problems : problems.filter((p) => p.status === filter);
@@ -74,8 +86,47 @@ export default function DashboardPage() {
       <p className="lede" style={{ marginTop: 14 }}>
         {problems.length === 0
           ? "You have not been issued anything yet."
-          : `${problems.length} issued to you. Mark what you are actually building — the club feed shows the difference between collecting problems and finishing them.`}
+          : "Tick off requirements as you clear them and log what moved. The club feed leads with shipped work, so this is what puts you on it."}
       </p>
+
+      {problems.length > 0 && (
+        <div className="row section" style={{ gap: 28 }}>
+          <div>
+            <div className="stat">{momentum.shipped}</div>
+            <div className="faint" style={{ fontSize: 13 }}>
+              shipped
+            </div>
+          </div>
+          <div>
+            <div className="stat">{momentum.building}</div>
+            <div className="faint" style={{ fontSize: 13 }}>
+              in progress
+            </div>
+          </div>
+          <div>
+            <div className="stat">{momentum.ticks}</div>
+            <div className="faint" style={{ fontSize: 13 }}>
+              {momentum.ticks === 1 ? "box ticked" : "boxes ticked"}
+            </div>
+          </div>
+          <div>
+            <div className="stat">{momentum.logged}</div>
+            <div className="faint" style={{ fontSize: 13 }}>
+              {momentum.logged === 1 ? "progress note" : "progress notes"}
+            </div>
+          </div>
+          {momentum.idle > 0 && (
+            <div>
+              <div className="stat" style={{ color: "var(--warn)" }}>
+                {momentum.idle}
+              </div>
+              <div className="faint" style={{ fontSize: 13 }}>
+                gone quiet
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="row section" style={{ gap: 8 }}>
         {FILTERS.map((f) => (

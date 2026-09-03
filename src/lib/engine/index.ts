@@ -6,7 +6,10 @@ import type { DoabilityBar } from "./fit";
 import { compose } from "./compose";
 import { fingerprint, pick, seededRandom } from "./novelty";
 
-export type GeneratedProblem = Omit<Problem, "id" | "status" | "notes" | "createdAt">;
+export type GeneratedProblem = Omit<
+  Problem,
+  "id" | "status" | "notes" | "checklist" | "progress" | "createdAt"
+>;
 
 export interface GenerateOptions {
   count?: number;

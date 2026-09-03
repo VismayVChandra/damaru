@@ -1,4 +1,4 @@
-import type { Problem, Profile } from "@/lib/types";
+import type { Checklist, Problem, ProblemPayload, Profile } from "@/lib/types";
 
 /**
  * Hand-written to match supabase/schema.sql, in the same shape the Supabase
@@ -44,12 +44,10 @@ export interface Database {
           id: string;
           fingerprint: string;
           profile_id: string;
-          payload: Omit<
-            Problem,
-            "id" | "fingerprint" | "profileId" | "status" | "notes" | "createdAt"
-          >;
+          payload: ProblemPayload;
           status: Problem["status"];
           notes: string;
+          checklist: Checklist;
           domain_id: string;
           fit: number;
           difficulty: number;
@@ -59,12 +57,10 @@ export interface Database {
           id: string;
           fingerprint: string;
           profile_id: string;
-          payload: Omit<
-            Problem,
-            "id" | "fingerprint" | "profileId" | "status" | "notes" | "createdAt"
-          >;
+          payload: ProblemPayload;
           status: Problem["status"];
           notes: string;
+          checklist?: Checklist;
           domain_id: string;
           fit: number;
           difficulty: number;
@@ -73,6 +69,7 @@ export interface Database {
         Update: {
           status?: Problem["status"];
           notes?: string;
+          checklist?: Checklist;
         };
         Relationships: [
           {
@@ -80,6 +77,30 @@ export interface Database {
             columns: ["profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      progress_entries: {
+        Row: {
+          id: string;
+          problem_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          problem_id: string;
+          body: string;
+        };
+        Update: {
+          body?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "progress_entries_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
             referencedColumns: ["id"];
           },
         ];
