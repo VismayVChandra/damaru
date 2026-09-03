@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Checklist, Problem, ProgressEntry } from "@/lib/types";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import { checklistProgress, idleDays, timeAgo } from "@/lib/activity";
@@ -82,6 +82,9 @@ export default function ProblemCard({
 }) {
   const [status, setStatus] = useState<Problem["status"]>(problem.status);
   const [checklist, setChecklist] = useState<Checklist>(problem.checklist ?? {});
+  // Ticking two boxes quickly would otherwise build both updates from the same
+  // render's `checklist`, and the second write would drop the first.
+  const latestChecklist = useRef<Checklist>(problem.checklist ?? {});
   const [progress, setProgress] = useState<ProgressEntry[]>(problem.progress ?? []);
   const [notes, setNotes] = useState(problem.notes);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -107,11 +110,12 @@ export default function ProblemCard({
   }
 
   async function toggle(key: string) {
-    const next = { ...checklist };
+    const previous = latestChecklist.current;
+    const next = { ...previous };
     if (next[key]) delete next[key];
     else next[key] = true;
 
-    const previous = checklist;
+    latestChecklist.current = next;
     setChecklist(next);
     try {
       await api(`/api/problems/${problem.id}`, {
@@ -119,6 +123,7 @@ export default function ProblemCard({
         body: JSON.stringify({ checklist: next }),
       });
     } catch {
+      latestChecklist.current = previous;
       setChecklist(previous);
     }
   }
