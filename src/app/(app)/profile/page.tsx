@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, SKILLS } from "@/lib/catalog/skills";
 import { DOMAINS } from "@/lib/catalog/domains";
 import { ARTIFACTS } from "@/lib/catalog/blocks";
-import { api, getHandle, setHandle } from "@/lib/client";
+import { api } from "@/lib/client";
 import type { Appetite, Profile, SkillCategory, TeamSize, TimeBudget, UserSkill } from "@/lib/types";
 
 const LEVEL_LABEL: Record<number, string> = { 1: "learning", 2: "ok", 3: "strong" };
@@ -44,26 +44,25 @@ export default function ProfilePage() {
   const [status, setStatus] = useState<"idle" | "loading" | "saving">("loading");
   const [error, setError] = useState<string | null>(null);
 
-  // Load an existing profile if this browser already knows a handle.
+  // Who is signed in is now the session cookie, not a stored handle - load
+  // whatever profile (if any) belongs to the current account.
   useEffect(() => {
-    const existing = getHandle();
-    if (!existing) {
-      setStatus("idle");
-      return;
-    }
-    setHandleValue(existing);
-    api<{ profile: Profile }>(`/api/profile?handle=${encodeURIComponent(existing)}`)
-      .then(({ profile }) => {
-        setDisplayName(profile.displayName);
-        setSkills(profile.skills);
-        setInterests(profile.interests);
-        setArtifactPrefs(profile.artifactPrefs);
-        setTimeBudget(profile.timeBudget);
-        setTeamSize(profile.teamSize);
-        setAppetite(profile.appetite);
-      })
-      .catch(() => {
-        /* handle stored but no profile yet - treat as new */
+    api<{ user: { id: string; email: string } | null; profile: Profile | null }>("/api/me")
+      .then(({ user, profile }) => {
+        if (profile) {
+          setHandleValue(profile.handle);
+          setDisplayName(profile.displayName);
+          setSkills(profile.skills);
+          setInterests(profile.interests);
+          setArtifactPrefs(profile.artifactPrefs);
+          setTimeBudget(profile.timeBudget);
+          setTeamSize(profile.teamSize);
+          setAppetite(profile.appetite);
+        } else if (user?.email) {
+          // A brand-new account - suggest a handle from the email as a
+          // starting point, still fully editable.
+          setDisplayName(user.email.split("@")[0]);
+        }
       })
       .finally(() => setStatus("idle"));
   }, []);
@@ -113,7 +112,7 @@ export default function ProfilePage() {
     setError(null);
     setStatus("saving");
     try {
-      const { profile } = await api<{ profile: Profile }>("/api/profile", {
+      await api<{ profile: Profile }>("/api/profile", {
         method: "POST",
         body: JSON.stringify({
           handle,
@@ -126,7 +125,6 @@ export default function ProfilePage() {
           appetite,
         }),
       });
-      setHandle(profile.handle);
       router.push("/generate");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -165,7 +163,7 @@ export default function ProfilePage() {
       <section className="card section">
         <h3>Identity</h3>
         <p className="faint" style={{ fontSize: 13, marginTop: 4, marginBottom: 16 }}>
-          Your handle is how the club feed credits you, and how you get back to your problems.
+          Your handle is how the club feed credits you. It has nothing to do with your login email.
         </p>
         <div className="grid-2">
           <div>

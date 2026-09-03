@@ -3,6 +3,7 @@ import { countProblems, countProfiles } from "@/lib/db";
 import { combinationSpace } from "@/lib/engine";
 import { DOMAINS } from "@/lib/catalog/domains";
 import { SKILLS } from "@/lib/catalog/skills";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ const STEPS = [
 ];
 
 export default async function Home() {
-  const [profiles, problems] = [countProfiles(), countProblems()];
+  const [profiles, problems, user] = await Promise.all([
+    countProfiles(),
+    countProblems(),
+    getCurrentUser(),
+  ]);
   const space = combinationSpace();
 
   return (
@@ -43,8 +48,8 @@ export default async function Home() {
           else in the club is building the same thing.
         </p>
         <div className="row" style={{ marginTop: 28, gap: 12 }}>
-          <Link href="/profile" className="btn btn-primary btn-lg">
-            Build your profile
+          <Link href={user ? "/generate" : "/signup"} className="btn btn-primary btn-lg">
+            {user ? "Get a problem" : "Create an account"}
           </Link>
           <Link href="/browse" className="btn btn-lg">
             See what the club is building
@@ -142,7 +147,7 @@ export default async function Home() {
           <p className="muted" style={{ maxWidth: "50ch", margin: "12px auto 22px" }}>
             Two minutes of honest self-assessment, and you walk away with something to build.
           </p>
-          <Link href="/profile" className="btn btn-primary btn-lg">
+          <Link href={user ? "/profile" : "/signup"} className="btn btn-primary btn-lg">
             Start
           </Link>
         </div>

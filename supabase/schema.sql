@@ -1,0 +1,78 @@
+-- Damaru schema. Run this once in the Supabase SQL Editor
+-- (Project -> SQL Editor -> New query -> paste -> Run) on a fresh project.
+--
+-- Identity is Supabase Auth: profiles.id IS the auth.users.id, so a profile
+-- can only ever belong to the account that owns it. `handle` is a separate,
+-- unique, user-chosen public display name shown on the club feed - it is
+-- never used for authorization, only for display.
+
+create extension if not exists "pgcrypto";
+
+create table profiles (
+  id             uuid primary key references auth.users(id) on delete cascade,
+  handle         text not null unique,
+  display_name   text not null,
+  skills         jsonb not null default '[]'::jsonb,
+  interests      jsonb not null default '[]'::jsonb,
+  artifact_prefs jsonb not null default '[]'::jsonb,
+  time_budget    text not null default 'twoweeks',
+  team_size      text not null default 'solo',
+  appetite       text not null default 'stretch',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+
+  constraint handle_format check (handle ~ '^[a-z0-9_-]{2,32}$'),
+  constraint time_budget_valid check (time_budget in ('weekend', 'twoweeks', 'semester')),
+  constraint team_size_valid check (team_size in ('solo', 'pair', 'team')),
+  constraint appetite_valid check (appetite in ('comfort', 'stretch', 'deepend'))
+);
+
+create table problems (
+  id          uuid primary key default gen_random_uuid(),
+  fingerprint text not null unique,
+  profile_id  uuid not null references profiles(id) on delete cascade,
+  payload     jsonb not null,
+  status      text not null default 'new',
+  notes       text not null default '',
+  domain_id   text not null,
+  fit         real not null,
+  difficulty  int not null,
+  created_at  timestamptz not null default now(),
+
+  constraint status_valid check (status in ('new', 'saved', 'building', 'shipped', 'passed'))
+);
+
+create index idx_problems_profile on problems(profile_id);
+create index idx_problems_created on problems(created_at desc);
+
+-- Row Level Security. The app server talks to Postgres with the service-role
+-- key and bypasses RLS entirely (it is the trusted gatekeeper - every API
+-- route re-checks the session itself, mirroring how the SQLite version
+-- worked). RLS here is defense in depth: if the anon/public key ever reaches
+-- Postgres directly - a debugging session, a future client-side query - these
+-- policies are what stop it from reading or writing anyone else's data.
+alter table profiles enable row level security;
+alter table problems enable row level security;
+
+create policy "profiles are privately owned"
+  on profiles for all
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+create policy "problems are privately owned"
+  on problems for all
+  using (auth.uid() = profile_id)
+  with check (auth.uid() = profile_id);
+
+-- The club feed is intentionally public: everyone should be able to see what
+-- the club is building without signing in. This grants read-only access to
+-- problems (and the handle they belong to) alongside the owner-only policy
+-- above - Postgres RLS is permissive, so a row is visible if ANY policy
+-- allows it.
+create policy "problems are publicly readable"
+  on problems for select
+  using (true);
+
+create policy "handles are publicly readable"
+  on profiles for select
+  using (true);

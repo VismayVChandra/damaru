@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { allFingerprints, getProfileByHandle, insertProblem } from "@/lib/db";
+import { getCurrentUser } from "@/lib/supabase/server";
+import { allFingerprints, getProfileById, insertProblem } from "@/lib/db";
 import { generateProblems } from "@/lib/engine";
 import type { Problem } from "@/lib/types";
 
@@ -7,23 +8,25 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+
+  const profile = await getProfileById(user.id);
+  if (!profile) {
+    return NextResponse.json({ error: "Build a profile first." }, { status: 404 });
+  }
+
+  let body: Record<string, unknown> = {};
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
-  }
-
-  const handle = typeof body.handle === "string" ? body.handle.trim().toLowerCase() : "";
-  const profile = getProfileByHandle(handle);
-  if (!profile) {
-    return NextResponse.json({ error: "Build a profile first." }, { status: 404 });
+    /* count is optional, so a body-less request is fine */
   }
 
   const requested = Number(body.count);
   const count = Number.isFinite(requested) ? Math.max(1, Math.min(5, Math.trunc(requested))) : 3;
 
-  const issued = allFingerprints();
+  const issued = await allFingerprints();
   const saved: Problem[] = [];
 
   // Each pass excludes everything already issued globally plus anything this
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
       };
       // A concurrent request may have taken this fingerprint between the read
       // and the write; the unique index is the real arbiter.
-      const stored = insertProblem(problem);
+      const stored = await insertProblem(problem);
       if (stored) {
         saved.push(stored);
         issued.add(stored.fingerprint);

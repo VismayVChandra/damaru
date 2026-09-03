@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getHandle } from "@/lib/client";
+import { logout } from "@/app/auth/actions";
+import { api } from "@/lib/client";
+import type { Profile } from "@/lib/types";
 
 const LINKS = [
   { href: "/profile", label: "Profile" },
@@ -12,12 +14,22 @@ const LINKS = [
   { href: "/browse", label: "Club feed" },
 ];
 
+interface Me {
+  user: { id: string; email: string } | null;
+  profile: Profile | null;
+}
+
 export default function Nav() {
   const pathname = usePathname();
-  const [handle, setHandleState] = useState<string | null>(null);
+  const [me, setMe] = useState<Me | undefined>(undefined);
 
-  // localStorage is unavailable during SSR, so read it after mount.
-  useEffect(() => setHandleState(getHandle()), [pathname]);
+  // Re-check on every navigation - cheap, and keeps the handle chip in sync
+  // right after signup/login/logout without a full page reload.
+  useEffect(() => {
+    api<Me>("/api/me")
+      .then(setMe)
+      .catch(() => setMe({ user: null, profile: null }));
+  }, [pathname]);
 
   return (
     <nav className="nav">
@@ -37,7 +49,20 @@ export default function Nav() {
           </Link>
         ))}
         <span className="nav-spacer" />
-        {handle && <span className="nav-handle">@{handle}</span>}
+        {me === undefined ? null : me.user ? (
+          <form action={logout} className="row" style={{ gap: 8 }}>
+            <span className="nav-handle">
+              {me.profile ? `@${me.profile.handle}` : "finish your profile"}
+            </span>
+            <button type="submit" className="btn btn-sm">
+              Sign out
+            </button>
+          </form>
+        ) : (
+          <Link href="/login" className="btn btn-sm">
+            Sign in
+          </Link>
+        )}
       </div>
     </nav>
   );

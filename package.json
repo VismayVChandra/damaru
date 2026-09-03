@@ -9,9 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "15.5.4",
+    "@supabase/ssr": "0.12.5",
+    "@supabase/supabase-js": "2.114.0",
+    "next": "15.5.25",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "22.15.3",

@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { getProfileByHandle, listProblemsForProfile, listRecentProblems } from "@/lib/db";
+import { getCurrentUser } from "@/lib/supabase/server";
+import { getProfileById, listProblemsForProfile } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const params = new URL(request.url).searchParams;
-  const handle = params.get("handle")?.trim().toLowerCase();
+/**
+ * "My problems" for the signed-in account. The public club feed is served
+ * separately by src/app/browse/page.tsx, which reads listFeed() directly as
+ * a Server Component - it needs no auth and isn't scoped to one person.
+ */
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
-  if (handle) {
-    const profile = getProfileByHandle(handle);
-    if (!profile) {
-      return NextResponse.json({ error: "No profile with that handle." }, { status: 404 });
-    }
-    return NextResponse.json({ problems: listProblemsForProfile(profile.id), profile });
-  }
+  const profile = await getProfileById(user.id);
+  if (!profile) return NextResponse.json({ problems: [], profile: null });
 
-  const limit = Math.max(1, Math.min(100, Number(params.get("limit")) || 40));
-  return NextResponse.json({ problems: listRecentProblems(limit) });
+  return NextResponse.json({ problems: await listProblemsForProfile(profile.id), profile });
 }

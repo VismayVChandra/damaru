@@ -6,9 +6,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({
-    profiles: countProfiles(),
-    problems: countProblems(),
-    space: combinationSpace(),
-  });
+  const [profiles, problems] = await Promise.all([countProfiles(), countProblems()]);
+  return NextResponse.json({ profiles, problems, space: combinationSpace() });
 }

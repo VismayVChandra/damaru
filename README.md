@@ -4,37 +4,52 @@ A website where people upload their skills and interests, and get back a project
 problem statement that is **specific to them**, **doable with what they know**, and
 **never issued to anyone else**.
 
-Next.js + TypeScript, SQLite, zero paid services.
+Next.js + TypeScript, Supabase (Postgres + auth), deployable to Vercel for free.
 
 ---
 
 ## Quick start
 
-```bash
-npm install
-```
+**1. Create a Supabase project.** [supabase.com](https://supabase.com) → New project →
+wait ~2 min for it to provision.
+
+**2. Run the schema.** In the project, left sidebar → **SQL Editor** → **New query** →
+paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
+This creates the `profiles` and `problems` tables and their Row Level Security
+policies.
+
+**3. Get your credentials.** **Project Settings → API**. Copy the **Project URL**, the
+**anon / public** key, and the **service_role** key (click reveal).
+
+**4. Configure the app.**
 
 ```bash
+cp .env.local.example .env.local
+```
+
+Fill in the three values from step 3. `.env.local` is gitignored — it never leaves
+your machine.
+
+**5. Install and run.**
+
+```bash
+npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The database creates itself at `data/damaru.db` on
-first run — there is nothing to provision, migrate or sign up for.
+Open http://localhost:3000. Sign up, confirm the account (see [Email
+confirmation](#email-confirmation) below), build a profile, generate.
 
-```bash
-npm run build && npm start
-```
-
-Requires **Node 22.5+** (24 recommended). The database is Node's built-in
-`node:sqlite`, so there is no native module to compile — which matters on Windows.
+Requires **Node 22.5+** (24 recommended).
 
 ---
 
 ## What it costs to run
 
-Nothing. There is no API key, no paid service, no always-on worker. The generator
-is a local combinatorial engine, and the database is a file. Deploying it costs
-whatever your host charges for a small Node process — free on most.
+Nothing, at club scale. There is no LLM API key — the generator is a local
+combinatorial engine. Supabase's free tier (500 MB database, 50k monthly active
+users, unlimited API requests) covers this comfortably; Vercel's free tier covers
+the hosting. You will not hit either ceiling running this for a club.
 
 ---
 
@@ -106,41 +121,100 @@ that fits has already been issued — which the error message says explicitly.
 
 ### Uniqueness
 
-Every problem's DNA hashes to a 64-bit `fingerprint`, which is `UNIQUE` in the
-database. Generation excludes every fingerprint ever issued to anyone, and the
-unique index is the final arbiter if two requests race. No two people in the club
-can ever be handed the same problem.
+Every problem's DNA hashes to a 64-bit `fingerprint`, which is `UNIQUE` in
+Postgres. Generation excludes every fingerprint ever issued to anyone, and the
+unique constraint is the final arbiter if two requests race. No two people in the
+club can ever be handed the same problem.
+
+---
+
+## Auth and data access
+
+Identity is Supabase Auth (email + password) — `profiles.id` **is** the
+`auth.users.id`, so a profile can only ever belong to the account that owns it.
+`handle` is a separate, user-chosen public display name shown on the club feed; it
+has nothing to do with login and carries no authorization weight.
+
+The server is the trusted gatekeeper, the same architecture as before the
+migration: every route that touches data calls `getCurrentUser()` and checks
+ownership itself (`src/lib/db.ts` talks to Postgres through the **service-role**
+key, which bypasses Row Level Security entirely). RLS policies in
+`supabase/schema.sql` exist as defense in depth — if the anon key ever reached
+Postgres directly, they are what stop it reading or writing someone else's data —
+not as the primary enforcement.
+
+**The one thing genuinely worth knowing:** `PATCH /api/problems/[id]` didn't check
+ownership at all in the pre-Supabase version — anyone who knew or guessed a
+problem's UUID could edit its status and notes. That's fixed as part of this
+migration (`src/app/api/problems/[id]/route.ts` now checks `problem.profileId ===
+user.id`), but call it out if you're diffing.
+
+### Email confirmation
+
+Supabase requires a clicked confirmation link before a new account gets a session,
+by default. The signup flow handles this (`src/app/auth/actions.ts` checks whether
+`signUp` returned a session and redirects to a "check your email" notice if not),
+but for a club tool the friction may not be worth it. To turn it off: **Authentication
+→ Providers → Email → uncheck "Confirm email"**. Either way works with no code
+change.
+
+---
+
+## Deploying to Vercel
+
+1. Push this repo to GitHub (already done if you're reading this from the repo).
+2. [vercel.com](https://vercel.com) → **New Project** → import the repo.
+3. Add the same three environment variables from `.env.local` in the Vercel
+   project's **Settings → Environment Variables**.
+4. Deploy.
+
+No other configuration needed — Vercel detects Next.js automatically, and there is
+no filesystem dependency left (that was the whole reason for this migration: the
+SQLite version could not run on Vercel's read-only, ephemeral filesystem at all).
 
 ---
 
 ## Project structure
 
 ```
+supabase/
+  schema.sql             tables, constraints, RLS policies - run once per project
 src/
+  middleware.ts           refreshes the Supabase session cookie on every request
   app/
-    page.tsx              landing
-    profile/              skills, interests, constraints
-    generate/             draw new problems
-    dashboard/            your problems + status + notes
-    browse/               club feed
+    page.tsx               landing
+    login/, signup/         auth pages
+    auth/actions.ts         server actions: login, signup, logout
+    (app)/                  auth-gated route group
+      layout.tsx             redirects to /login if no session
+      profile/                skills, interests, constraints
+      generate/                draw new problems
+      dashboard/               your problems + status + notes
+    browse/                 public club feed (no auth required)
     api/
-      profile/            GET ?handle= , POST upsert
-      generate/           POST { handle, count }
-      problems/           GET ?handle= (yours) or recent
-      problems/[id]/      PATCH { status, notes }
-      stats/              GET counts
+      me/                    GET current session's user + profile
+      profile/               GET / POST (session-scoped)
+      generate/               POST { count } (session-scoped)
+      problems/                GET (your problems, session-scoped)
+      problems/[id]/            PATCH { status, notes } - ownership-checked
+      stats/                  GET counts
   lib/
-    types.ts              shared domain types
-    db.ts                 node:sqlite schema + queries
+    types.ts                shared domain types
+    db.ts                   Postgres data access via the service-role client
+    supabase/
+      server.ts               session-aware client (reads cookies, respects RLS)
+      admin.ts                 service-role client (bypasses RLS - server only)
+      browser.ts                browser client
+      types.ts                  hand-written Database type for supabase-js
     catalog/
-      skills.ts           73 skills across 11 categories
-      domains.ts          18 domains, 144 actor-bound frictions
-      blocks.ts           22 mechanics, 12 artifacts, 16 twists
+      skills.ts               73 skills across 11 categories
+      domains.ts               18 domains, 144 actor-bound frictions
+      blocks.ts                 22 mechanics, 12 artifacts, 16 twists
     engine/
-      index.ts            candidate selection  <- the LLM seam
-      fit.ts              doability scoring
-      compose.ts          prose composition
-      novelty.ts          fingerprinting + seeded RNG
+      index.ts                candidate selection  <- the LLM seam
+      fit.ts                   doability scoring
+      compose.ts                 prose composition
+      novelty.ts                  fingerprinting + seeded RNG
   components/
     Nav.tsx  ProblemCard.tsx
 ```
@@ -179,14 +253,12 @@ is the product.
 
 ## Known limitations
 
-**There is no authentication.** Identity is a handle stored in `localStorage`, and
-the API trusts whatever handle it is sent. Anyone who knows a handle can edit that
-profile and its problems. That is a deliberate trade for a club-internal tool and
-it is **not** safe on the open internet — put real auth in front of it before
-exposing it publicly.
+**The service-role key is powerful.** It bypasses every RLS policy in the
+database. It lives only in `.env.local` (local) and Vercel's environment variable
+store (production) via `server-only`-guarded modules — never commit it, never put
+it in a client component, never paste it anywhere but an env var.
 
-**SQLite is single-writer.** Fine for a club; it is not the shape for thousands of
-concurrent users. WAL mode is on, which is enough headroom for the intended scale.
-
-**`data/damaru.db` is gitignored.** It is real state — back it up if the club's
-problem history matters to you.
+**Changing the schema means updating two places.** `supabase/schema.sql` (the
+actual database) and `src/lib/supabase/types.ts` (the hand-written TypeScript
+`Database` type supabase-js needs to type-check inserts and updates) have to stay
+in sync manually — there is no code generation step wired up.

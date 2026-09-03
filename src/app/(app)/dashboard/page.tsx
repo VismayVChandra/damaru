@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ProblemCard from "@/components/ProblemCard";
-import { api, getHandle } from "@/lib/client";
+import { api } from "@/lib/client";
 import type { Problem, Profile } from "@/lib/types";
 
 const FILTERS: { id: "all" | Problem["status"]; label: string }[] = [
@@ -19,23 +19,18 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [filter, setFilter] = useState<"all" | Problem["status"]>("all");
-  const [state, setState] = useState<"loading" | "ready" | "anon">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "no-profile">("loading");
 
+  // Auth is already guaranteed by the (app) layout - the only thing left to
+  // find out is whether this account has a profile yet.
   useEffect(() => {
-    const handle = getHandle();
-    if (!handle) {
-      setState("anon");
-      return;
-    }
-    api<{ problems: Problem[]; profile: Profile }>(
-      `/api/problems?handle=${encodeURIComponent(handle)}`,
-    )
+    api<{ problems: Problem[]; profile: Profile | null }>("/api/problems")
       .then(({ problems, profile }) => {
         setProblems(problems);
         setProfile(profile);
-        setState("ready");
+        setState(profile ? "ready" : "no-profile");
       })
-      .catch(() => setState("anon"));
+      .catch(() => setState("no-profile"));
   }, []);
 
   const counts = useMemo(() => {
@@ -56,7 +51,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (state === "anon") {
+  if (state === "no-profile") {
     return (
       <main className="shell shell-narrow">
         <div className="card" style={{ textAlign: "center", padding: 40 }}>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getProfileByHandle, upsertProfile } from "@/lib/db";
+import { getCurrentUser } from "@/lib/supabase/server";
+import { getProfileById, upsertProfile } from "@/lib/db";
 import { SKILL_BY_ID } from "@/lib/catalog/skills";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { ARTIFACT_BY_ID } from "@/lib/catalog/blocks";
@@ -12,7 +13,7 @@ const TIME_BUDGETS: TimeBudget[] = ["weekend", "twoweeks", "semester"];
 const TEAM_SIZES: TeamSize[] = ["solo", "pair", "team"];
 const APPETITES: Appetite[] = ["comfort", "stretch", "deepend"];
 
-/** Handles are the identity here, so keep them boring and predictable. */
+/** Handles are a public display name now, not identity - keep them boring. */
 function normaliseHandle(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const handle = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -20,16 +21,19 @@ function normaliseHandle(raw: unknown): string | null {
   return handle;
 }
 
-export async function GET(request: Request) {
-  const handle = normaliseHandle(new URL(request.url).searchParams.get("handle"));
-  if (!handle) return NextResponse.json({ error: "A valid handle is required." }, { status: 400 });
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
-  const profile = getProfileByHandle(handle);
-  if (!profile) return NextResponse.json({ error: "No profile with that handle." }, { status: 404 });
+  const profile = await getProfileById(user.id);
+  if (!profile) return NextResponse.json({ error: "No profile yet." }, { status: 404 });
   return NextResponse.json({ profile });
 }
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -95,11 +99,14 @@ export async function POST(request: Request) {
     ? (body.appetite as Appetite)
     : "stretch";
 
-  const existing = getProfileByHandle(handle);
+  // Ownership is the session, never anything the client sends. Every profile
+  // row's id IS the Supabase auth user id, so a person can only ever write
+  // their own row - upsert's onConflict is "id".
+  const existing = await getProfileById(user.id);
   const now = new Date().toISOString();
 
   const profile: Profile = {
-    id: existing?.id ?? crypto.randomUUID(),
+    id: user.id,
     handle,
     displayName,
     skills,
@@ -112,5 +119,13 @@ export async function POST(request: Request) {
     updatedAt: now,
   };
 
-  return NextResponse.json({ profile: upsertProfile(profile) });
+  try {
+    return NextResponse.json({ profile: await upsertProfile(profile) });
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23505") {
+      return NextResponse.json({ error: "That handle is already taken." }, { status: 409 });
+    }
+    throw err;
+  }
 }

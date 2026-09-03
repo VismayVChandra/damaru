@@ -23,7 +23,7 @@ function timeAgo(iso: string): string {
 }
 
 export default async function BrowsePage() {
-  const feed = listFeed(50);
+  const feed = await listFeed(50);
   const shipped = feed.filter((p) => p.status === "shipped").length;
   const building = feed.filter((p) => p.status === "building").length;
 

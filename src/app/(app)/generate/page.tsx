@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ProblemCard from "@/components/ProblemCard";
-import { api, getHandle } from "@/lib/client";
+import { api } from "@/lib/client";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import type { Problem, Profile } from "@/lib/types";
 
@@ -23,15 +23,11 @@ export default function GeneratePage() {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
+  // The (app) layout has already confirmed we're signed in - here we only
+  // need to know whether a profile has been created yet.
   useEffect(() => {
-    const handle = getHandle();
-    if (!handle) {
-      setReady(true);
-      return;
-    }
-    api<{ profile: Profile }>(`/api/profile?handle=${encodeURIComponent(handle)}`)
+    api<{ profile: Profile | null }>("/api/me")
       .then(({ profile }) => setProfile(profile))
-      .catch(() => setProfile(null))
       .finally(() => setReady(true));
   }, []);
 
@@ -50,7 +46,7 @@ export default function GeneratePage() {
     try {
       const { problems } = await api<{ problems: Problem[] }>("/api/generate", {
         method: "POST",
-        body: JSON.stringify({ handle: profile.handle, count }),
+        body: JSON.stringify({ count }),
       });
       setProblems(problems);
     } catch (e) {
