@@ -45,6 +45,16 @@ export default function ProfilePage() {
   const [status, setStatus] = useState<"idle" | "loading" | "saving">("loading");
   const [error, setError] = useState<string | null>(null);
 
+  // Explicit open/closed overrides for the skill category accordion. Absent
+  // from this map, a category falls back to its computed default (open if it
+  // has a selection or a search match) - see `openDefault` below. All 11
+  // categories rendered flat was a measured 6+ screens of scroll on mobile
+  // before you even reached "what do you want to make", so browsing starts
+  // collapsed and only opens what is relevant or already chosen.
+  const [categoryOverrides, setCategoryOverrides] = useState<Map<SkillCategory, boolean>>(
+    new Map(),
+  );
+
   // Who is signed in is now the session cookie, not a stored handle - load
   // whatever profile (if any) belongs to the current account.
   useEffect(() => {
@@ -108,6 +118,10 @@ export default function ProfilePage() {
 
   function toggle(list: string[], setList: (v: string[]) => void, id: string) {
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  }
+
+  function setCategoryOpen(category: SkillCategory, open: boolean) {
+    setCategoryOverrides((prev) => new Map(prev).set(category, open));
   }
 
   async function save() {
@@ -226,10 +240,15 @@ export default function ProfilePage() {
                 const skill = SKILLS.find((s) => s.id === us.id);
                 if (!skill) return null;
                 return (
-                  <span key={us.id} className="chip" data-on="true">
-                    <span onClick={() => toggleSkill(us.id)} style={{ cursor: "pointer" }}>
+                  <span key={us.id} className="chip skill-chip" data-on="true">
+                    <button
+                      type="button"
+                      className="skill-chip-label"
+                      onClick={() => toggleSkill(us.id)}
+                      title="Remove"
+                    >
                       {skill.label}
-                    </span>
+                    </button>
                     <span className="level-group">
                       {([1, 2, 3] as const).map((lvl) => (
                         <button
@@ -251,25 +270,56 @@ export default function ProfilePage() {
           </div>
         )}
 
-        <div className="stack">
-          {Array.from(grouped.entries()).map(([category, list]) => (
-            <div key={category}>
-              <div className="label">{CATEGORY_LABELS[category]}</div>
-              <div className="chip-wrap">
-                {list.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className="chip"
-                    data-on={skillLevel.has(s.id) ? "true" : "false"}
-                    onClick={() => toggleSkill(s.id)}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="stack" style={{ gap: 8 }}>
+          {Array.from(grouped.entries()).map(([category, list]) => {
+            const selectedHere = list.filter((s) => skillLevel.has(s.id)).length;
+            // Open by default when it holds a pick or a search match, so
+            // browsing starts collapsed but orientation costs nothing.
+            const searching = search.trim().length > 0;
+            const defaultOpen = selectedHere > 0 || searching;
+            const open = categoryOverrides.get(category) ?? defaultOpen;
+
+            return (
+              <details
+                key={category}
+                className="cat-group"
+                open={open}
+                onToggle={(e) => setCategoryOpen(category, e.currentTarget.open)}
+              >
+                <summary className="cat-summary">
+                  <span className="cat-summary-label">
+                    <span className="cat-chevron" aria-hidden="true">
+                      &#9656;
+                    </span>
+                    {CATEGORY_LABELS[category]}
+                  </span>
+                  <span className="row" style={{ gap: 8 }}>
+                    {selectedHere > 0 && (
+                      <span className="cat-count">
+                        {selectedHere} selected
+                      </span>
+                    )}
+                    <span className="faint mono" style={{ fontSize: 11.5 }}>
+                      {list.length}
+                    </span>
+                  </span>
+                </summary>
+                <div className="chip-wrap" style={{ marginTop: 12 }}>
+                  {list.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="chip"
+                      data-on={skillLevel.has(s.id) ? "true" : "false"}
+                      onClick={() => toggleSkill(s.id)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
           {grouped.size === 0 && (
             <p className="faint" style={{ fontSize: 13 }}>
               Nothing matches “{search}”. The catalogue is deliberately finite — pick the closest

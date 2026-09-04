@@ -491,27 +491,126 @@ h3 {
   gap: 8px;
 }
 
+/* A selected skill: its own removable label plus a level control. Sized as
+   real touch targets - at 20px tall the three level buttons were smaller
+   than half a skill chip's own height and sat pressed together, which is
+   exactly wrong for the single most load-bearing input on the page ("be
+   honest about your level"). A mis-tap here silently records the wrong
+   level with nothing to notice it by. */
+.skill-chip {
+  padding: 4px 4px 4px 12px;
+  gap: 8px;
+}
+
+.skill-chip-label {
+  border: none;
+  background: none;
+  padding: 6px 2px;
+  margin: 0;
+  font: inherit;
+  color: var(--ember);
+  font-weight: 550;
+  cursor: pointer;
+}
+
 .level-group {
   display: inline-flex;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 7px;
   overflow: hidden;
-  margin-left: 2px;
 }
 
 .level-btn {
   border: none;
   background: transparent;
-  padding: 2px 7px;
+  min-height: 36px;
+  padding: 0 11px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   color: var(--text-faint);
+  border-left: 1px solid var(--border);
+}
+
+.level-btn:first-child {
+  border-left: none;
 }
 
 .level-btn[data-on="true"] {
   background: var(--ember);
   color: #fff;
+}
+
+/* --- Skill category accordion ---------------------------------------------
+   All 11 categories rendered flat measured 6+ screens of scroll on mobile
+   before reaching the rest of the form. Collapsed by default; a category
+   opens itself when it already holds a pick or matches the active search,
+   so browsing starts short but orientation is never hidden. */
+
+.cat-group {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 14px;
+}
+
+.cat-group[open] {
+  padding-bottom: 14px;
+}
+
+/* display:flex would suppress the native ::marker triangle (it only renders
+   under display:list-item), so the marker is replaced with a drawn chevron
+   that has full control over layout instead of fighting the browser for it. */
+.cat-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 2px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 550;
+  list-style: none;
+}
+
+.cat-summary::-webkit-details-marker {
+  display: none;
+}
+
+.cat-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.cat-chevron {
+  color: var(--text-faint);
+  font-size: 11px;
+  transition: transform 120ms ease;
+}
+
+.cat-group[open] .cat-chevron {
+  transform: rotate(90deg);
+}
+
+.cat-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ember);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ember-soft);
+}
+
+/* Four stat blocks of uneven natural width (a full-width meter, a short pip
+   row, a one-line estimate) previously wrapped as an uneven flex row -
+   staggered, different heights per row, worst on the exact width where
+   most students actually open this. A grid gives every cell the same
+   column width regardless of its content. */
+.meter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 20px;
 }
 
 /* --- Fit meter ------------------------------------------------------------- */

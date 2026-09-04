@@ -219,7 +219,7 @@ export default function ProblemCard({
         </div>
 
         <div className="card card-tight" style={{ background: "var(--panel-2)", marginBottom: 20 }}>
-          <div className="row" style={{ gap: 26, alignItems: "flex-start" }}>
+          <div className="meter-grid">
             <FitMeter fit={problem.fit} />
             <DoneMeter done={done.done} total={done.total} />
             <Difficulty level={problem.fit.difficulty} />
