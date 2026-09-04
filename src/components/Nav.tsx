@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import Mark from "@/components/Mark";
 import { logout } from "@/app/auth/actions";
 import { api } from "@/lib/client";
 import type { Profile } from "@/lib/types";
@@ -45,7 +46,7 @@ export default function Nav() {
     <nav className="nav">
       <div className="nav-inner">
         <Link href="/" className="brand">
-          <span className="brand-mark">&#129346;</span>
+          <Mark size={19} className="brand-mark" />
           <span>Damaru</span>
         </Link>
 

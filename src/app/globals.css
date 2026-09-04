@@ -156,8 +156,12 @@ textarea {
   font-size: 16px;
 }
 
+/* The mark sits on the wordmark's baseline rather than the text box, which
+   .brand aligns by default. */
 .brand-mark {
-  font-size: 17px;
+  color: var(--ember);
+  align-self: center;
+  flex: none;
 }
 
 .nav-links {
