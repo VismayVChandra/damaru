@@ -144,7 +144,7 @@ export default function SubmitPage() {
             onChange={(e) => setText(e.target.value)}
           />
           <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-            Lowercase, no full stop. It has to read after “…so that it is no longer true that”.{" "}
+            Lowercase, no full stop. It has to read after “The problem: …”.{" "}
             <span className="mono">{text.trim().length}/400</span>
           </p>
         </div>

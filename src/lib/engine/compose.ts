@@ -116,8 +116,15 @@ export function compose(
 
   // The statement names the crux; the full requirement lives in "must do" so
   // the two do not repeat each other word for word.
+  //
+  // Was "...so that it is no longer true that {friction}." - grammatically
+  // fine but a real double negative to parse, and actively ambiguous once a
+  // friction has its own "and" in it (does the negation cover both halves,
+  // or just the first?). Stating the friction plainly and the ask
+  // separately reads in one direction only.
   const statement = [
-    `Build ${artifact.phrase} for ${dna.actor}, so that it is no longer true that ${dna.friction}.`,
+    `The problem: ${dna.friction}, for ${dna.actor}.`,
+    `Build ${artifact.phrase} that fixes it.`,
     `The hard part is ${mechanic.label}.`,
     twist.text,
     pick(rng, SCOPE_LINES),
