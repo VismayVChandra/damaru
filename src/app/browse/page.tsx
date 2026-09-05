@@ -35,7 +35,14 @@ function Row({ item }: { item: FeedItem }) {
               {STATUS_LABEL[item.status]}
             </span>
             <span className="faint mono" style={{ fontSize: 11.5 }}>
-              @{item.handle} · {timeAgo(item.createdAt)}
+              {/* No onClick here - this file is a Server Component, and an
+                  inline handler on a Link can't cross that boundary. The
+                  click still bubbles to the parent <summary> and toggles it,
+                  but that's moot since the Link navigates away immediately. */}
+              <Link href={`/u/${item.handle}`} style={{ color: "inherit" }}>
+                @{item.handle}
+              </Link>{" "}
+              · {timeAgo(item.createdAt)}
             </span>
           </span>
         </div>

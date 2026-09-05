@@ -41,6 +41,7 @@ export default function ProfilePage() {
 
   const [handle, setHandleValue] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
   const [skills, setSkills] = useState<UserSkill[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [artifactPrefs, setArtifactPrefs] = useState<string[]>([]);
@@ -71,6 +72,7 @@ export default function ProfilePage() {
         if (profile) {
           setHandleValue(profile.handle);
           setDisplayName(profile.displayName);
+          setBio(profile.bio);
           setSkills(profile.skills);
           setInterests(profile.interests);
           setArtifactPrefs(profile.artifactPrefs);
@@ -141,6 +143,7 @@ export default function ProfilePage() {
         body: JSON.stringify({
           handle,
           displayName,
+          bio,
           skills,
           interests,
           artifactPrefs,
@@ -225,6 +228,23 @@ export default function ProfilePage() {
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <label className="label" htmlFor="bio">
+            Bio
+          </label>
+          <textarea
+            id="bio"
+            className="textarea"
+            value={bio}
+            maxLength={240}
+            placeholder="What you're into, what you're building, whatever you'd want a stranger to know."
+            onChange={(e) => setBio(e.target.value)}
+            style={{ minHeight: 70 }}
+          />
+          <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+            Shown on your public profile page. <span className="mono">{bio.length}/240</span>
+          </p>
         </div>
       </section>
 

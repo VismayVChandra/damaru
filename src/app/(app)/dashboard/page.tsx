@@ -85,7 +85,13 @@ export default function DashboardPage() {
 
   return (
     <main className="shell">
-      <div className="eyebrow">@{profile?.handle}</div>
+      <div className="eyebrow">
+        {profile?.handle ? (
+          <Link href={`/u/${profile.handle}`} style={{ color: "inherit" }}>
+            @{profile.handle}
+          </Link>
+        ) : null}
+      </div>
       <h1>My problems</h1>
       <p className="lede" style={{ marginTop: 14 }}>
         {problems.length === 0

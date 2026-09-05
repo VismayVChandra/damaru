@@ -262,6 +262,7 @@ textarea:focus-visible,
   padding: 5px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
+  text-decoration: none;
 }
 
 .nav-toggle {

@@ -38,6 +38,8 @@ export interface Profile {
   id: string;
   handle: string;
   displayName: string;
+  /** Shown on the public profile page only - a line of "who I am", never a generator input. */
+  bio: string;
   skills: UserSkill[];
   /** Domain ids from the catalog. */
   interests: string[];

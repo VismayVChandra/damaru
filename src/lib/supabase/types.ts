@@ -15,6 +15,7 @@ export interface Database {
           id: string;
           handle: string;
           display_name: string;
+          bio: string;
           skills: Profile["skills"];
           interests: string[];
           artifact_prefs: string[];
@@ -30,6 +31,7 @@ export interface Database {
           id: string;
           handle: string;
           display_name: string;
+          bio?: string;
           skills: Profile["skills"];
           interests: string[];
           artifact_prefs: string[];
@@ -41,6 +43,34 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
         Relationships: [];
+      };
+      follows: {
+        Row: {
+          follower_id: string;
+          following_id: string;
+          created_at: string;
+        };
+        Insert: {
+          follower_id: string;
+          following_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["follows"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "follows_follower_id_fkey";
+            columns: ["follower_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "follows_following_id_fkey";
+            columns: ["following_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       problems: {
         Row: {

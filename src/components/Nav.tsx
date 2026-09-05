@@ -69,9 +69,13 @@ export default function Nav() {
             in" must never be the thing hidden behind a tap. */}
         {me === undefined ? null : me.user ? (
           <form action={logout} className="row nav-auth" style={{ gap: 8 }}>
-            <span className="nav-handle">
-              {me.profile ? `@${me.profile.handle}` : "finish your profile"}
-            </span>
+            {me.profile ? (
+              <Link href={`/u/${me.profile.handle}`} className="nav-handle">
+                @{me.profile.handle}
+              </Link>
+            ) : (
+              <span className="nav-handle">finish your profile</span>
+            )}
             <button type="submit" className="btn btn-sm">
               Sign out
             </button>

@@ -191,9 +191,13 @@ function PairCard({ candidate }: { candidate: PairCandidate }) {
   return (
     <div className="card card-hover">
       <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
-        <span className="mono" style={{ fontSize: 14, fontWeight: 600 }}>
+        <Link
+          href={`/u/${candidate.handle}`}
+          className="mono"
+          style={{ fontSize: 14, fontWeight: 600, color: "inherit" }}
+        >
           @{candidate.handle}
-        </span>
+        </Link>
         {candidate.building > 0 && (
           <span className="chip chip-static" style={{ color: "var(--warn)", borderColor: "var(--warn)" }}>
             building {candidate.building}

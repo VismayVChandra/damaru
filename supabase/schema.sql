@@ -12,6 +12,9 @@ create table profiles (
   id             uuid primary key references auth.users(id) on delete cascade,
   handle         text not null unique,
   display_name   text not null,
+  -- Shown on the public profile page only - never part of the generator's
+  -- inputs, just a line of "who I am" for other members to read.
+  bio            text not null default '',
   skills         jsonb not null default '[]'::jsonb,
   interests      jsonb not null default '[]'::jsonb,
   artifact_prefs jsonb not null default '[]'::jsonb,
@@ -27,6 +30,7 @@ create table profiles (
   updated_at     timestamptz not null default now(),
 
   constraint handle_format check (handle ~ '^[a-z0-9_-]{2,32}$'),
+  constraint bio_len check (char_length(bio) <= 240),
   constraint time_budget_valid check (time_budget in ('weekend', 'twoweeks', 'semester')),
   constraint team_size_valid check (team_size in ('solo', 'pair', 'team')),
   constraint appetite_valid check (appetite in ('comfort', 'stretch', 'deepend'))
@@ -101,6 +105,19 @@ create index idx_problems_created on problems(created_at desc);
 create index idx_progress_problem on progress_entries(problem_id, created_at desc);
 create index idx_problems_friction on problems(friction_id);
 
+-- Public profile pages' follow graph. Counts are meant to be visible to
+-- everyone, which is why the read policy below is unrestricted.
+create table follows (
+  follower_id  uuid not null references profiles(id) on delete cascade,
+  following_id uuid not null references profiles(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+
+  primary key (follower_id, following_id),
+  constraint no_self_follow check (follower_id <> following_id)
+);
+
+create index idx_follows_following on follows(following_id);
+
 -- Row Level Security. The app server talks to Postgres with the service-role
 -- key and bypasses RLS entirely (it is the trusted gatekeeper - every API
 -- route re-checks the session itself, mirroring how the SQLite version
@@ -111,6 +128,7 @@ alter table profiles enable row level security;
 alter table problems enable row level security;
 alter table progress_entries enable row level security;
 alter table frictions enable row level security;
+alter table follows enable row level security;
 
 create policy "profiles are privately owned"
   on profiles for all
@@ -170,6 +188,17 @@ create policy "submitters can read their own"
 create policy "members submit as pending"
   on frictions for insert
   with check (auth.uid() = submitted_by and status = 'pending');
+
+-- Counts are public (that's the point of them), but only the follower
+-- themselves can create or remove their own follow row.
+create policy "follows are publicly readable"
+  on follows for select
+  using (true);
+
+create policy "people manage their own follows"
+  on follows for all
+  using (auth.uid() = follower_id)
+  with check (auth.uid() = follower_id);
 
 -- A fresh project should now run supabase/migrations/002b_seed_frictions.sql
 -- to load the 144 starting frictions into the table above.

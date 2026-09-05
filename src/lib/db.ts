@@ -23,6 +23,7 @@ interface ProfileRow {
   id: string;
   handle: string;
   display_name: string;
+  bio: string;
   skills: Profile["skills"];
   interests: string[];
   artifact_prefs: string[];
@@ -40,6 +41,7 @@ function rowToProfile(row: ProfileRow): Profile {
     id: row.id,
     handle: row.handle,
     displayName: row.display_name,
+    bio: row.bio ?? "",
     skills: row.skills,
     interests: row.interests,
     artifactPrefs: row.artifact_prefs,
@@ -70,6 +72,7 @@ export async function upsertProfile(profile: Profile): Promise<Profile> {
         id: profile.id,
         handle: profile.handle,
         display_name: profile.displayName,
+        bio: profile.bio,
         skills: profile.skills,
         interests: profile.interests,
         artifact_prefs: profile.artifactPrefs,
@@ -99,7 +102,10 @@ export async function getProfileById(id: string): Promise<Profile | null> {
   return data ? rowToProfile(data as ProfileRow) : null;
 }
 
-/** Used only to check handle availability - never for identity/auth. */
+/**
+ * Looks a profile up by its public handle - used for handle-availability
+ * checks and for loading a public profile page. Never for identity/auth.
+ */
 export async function getProfileByHandle(handle: string): Promise<Profile | null> {
   const { data, error } = await getAdminClient()
     .from("profiles")
@@ -109,6 +115,60 @@ export async function getProfileByHandle(handle: string): Promise<Profile | null
 
   if (error) throw error;
   return data ? rowToProfile(data as ProfileRow) : null;
+}
+
+// --- Follows ---------------------------------------------------------------
+
+/** Idempotent: following someone you already follow is a no-op, not an error. */
+export async function followProfile(followerId: string, followingId: string): Promise<void> {
+  if (followerId === followingId) return;
+  const { error } = await getAdminClient()
+    .from("follows")
+    .upsert({ follower_id: followerId, following_id: followingId }, { onConflict: "follower_id,following_id" });
+
+  if (error) throw error;
+}
+
+export async function unfollowProfile(followerId: string, followingId: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("follows")
+    .delete()
+    .eq("follower_id", followerId)
+    .eq("following_id", followingId);
+
+  if (error) throw error;
+}
+
+export async function isFollowing(followerId: string, followingId: string): Promise<boolean> {
+  const { data, error } = await getAdminClient()
+    .from("follows")
+    .select("follower_id")
+    .eq("follower_id", followerId)
+    .eq("following_id", followingId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data !== null;
+}
+
+export async function countFollowers(profileId: string): Promise<number> {
+  const { count, error } = await getAdminClient()
+    .from("follows")
+    .select("*", { count: "exact", head: true })
+    .eq("following_id", profileId);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countFollowing(profileId: string): Promise<number> {
+  const { count, error } = await getAdminClient()
+    .from("follows")
+    .select("*", { count: "exact", head: true })
+    .eq("follower_id", profileId);
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function countProfiles(): Promise<number> {

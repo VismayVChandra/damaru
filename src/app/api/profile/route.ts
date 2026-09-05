@@ -54,6 +54,8 @@ export async function POST(request: Request) {
       ? body.displayName.trim().slice(0, 80)
       : handle;
 
+  const bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 240) : "";
+
   // Drop anything not in the catalogue rather than trusting the client.
   const skills: UserSkill[] = Array.isArray(body.skills)
     ? body.skills
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
     id: user.id,
     handle,
     displayName,
+    bio,
     skills,
     interests,
     artifactPrefs,
