@@ -11,7 +11,19 @@ export type SkillCategory =
   | "hardware"
   | "ops"
   | "gamedev"
-  | "security";
+  | "security"
+  // Non-software engineering disciplines. Skills here feed the same fit
+  // scoring as everything above; the mechanics/artifacts in blocks.ts that
+  // require them are what make a generated problem an actual engineering
+  // build (a prototype, an analysis) instead of a web app.
+  | "mechanical"
+  | "electrical"
+  | "civil"
+  | "chemical"
+  | "aerospace"
+  | "biomedical"
+  | "environmental"
+  | "industrial";
 
 /** 1 = still learning, 2 = comfortable, 3 = strong. */
 export type Proficiency = 1 | 2 | 3;
@@ -126,6 +138,12 @@ export interface Twist {
   id: string;
   text: string;
   teaches: string;
+  /**
+   * Artifact ids this twist doesn't make sense for - e.g. "must fit in a
+   * single file" is a real constraint for a CLI tool and nonsense for a
+   * physical prototype. Absent means it applies everywhere.
+   */
+  excludeArtifacts?: string[];
 }
 
 export interface ProblemDNA {

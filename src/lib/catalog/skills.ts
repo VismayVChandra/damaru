@@ -12,6 +12,14 @@ export const CATEGORY_LABELS: Record<SkillCategory, string> = {
   ops: "Infra / Ops",
   gamedev: "Game dev",
   security: "Security",
+  mechanical: "Mechanical Engineering",
+  electrical: "Electrical Engineering",
+  civil: "Civil Engineering",
+  chemical: "Chemical Engineering",
+  aerospace: "Aerospace Engineering",
+  biomedical: "Biomedical Engineering",
+  environmental: "Environmental Engineering",
+  industrial: "Industrial & Manufacturing",
 };
 
 export const SKILLS: Skill[] = [
@@ -109,6 +117,70 @@ export const SKILLS: Skill[] = [
   { id: "crypto", label: "Cryptography", category: "security" },
   { id: "netsec", label: "Networking & protocols", category: "security" },
   { id: "forensics", label: "Forensics & reverse engineering", category: "security" },
+
+  // mechanical
+  { id: "statics-dynamics", label: "Statics & dynamics", category: "mechanical" },
+  { id: "thermo", label: "Thermodynamics", category: "mechanical" },
+  { id: "materials-sci", label: "Materials science", category: "mechanical" },
+  { id: "mech-cad", label: "CAD (SolidWorks / Fusion 360)", category: "mechanical", aliases: ["solidworks", "fusion360"] },
+  { id: "fea", label: "FEA / stress analysis", category: "mechanical" },
+  { id: "mechanisms", label: "Mechanism design", category: "mechanical" },
+
+  // electrical
+  { id: "circuits", label: "Circuit analysis", category: "electrical" },
+  { id: "pcb", label: "PCB design", category: "electrical" },
+  { id: "power-systems", label: "Power systems", category: "electrical" },
+  { id: "analog-signal", label: "Analog signal processing", category: "electrical" },
+  { id: "controls", label: "Control systems", category: "electrical" },
+  { id: "embedded-fw", label: "Embedded firmware (bare-metal)", category: "electrical" },
+
+  // civil
+  { id: "structural-analysis", label: "Structural analysis", category: "civil" },
+  { id: "surveying", label: "Surveying", category: "civil" },
+  { id: "construction-mgmt", label: "Construction management", category: "civil" },
+  { id: "geotech", label: "Geotechnical engineering", category: "civil" },
+  { id: "transport-eng", label: "Transportation engineering", category: "civil" },
+  { id: "civil-cad", label: "AutoCAD / Civil 3D", category: "civil" },
+
+  // chemical
+  { id: "reaction-eng", label: "Reaction engineering", category: "chemical" },
+  { id: "process-sim", label: "Process simulation (Aspen/HYSYS)", category: "chemical" },
+  { id: "mass-energy", label: "Mass & energy balances", category: "chemical" },
+  { id: "separations", label: "Separations (distillation, extraction)", category: "chemical" },
+  { id: "process-thermo", label: "Process thermodynamics", category: "chemical" },
+  { id: "process-safety", label: "Process safety", category: "chemical" },
+
+  // aerospace
+  { id: "aerodynamics", label: "Aerodynamics", category: "aerospace" },
+  { id: "propulsion", label: "Propulsion", category: "aerospace" },
+  { id: "orbital-mech", label: "Orbital mechanics", category: "aerospace" },
+  { id: "flight-controls", label: "Flight dynamics & control", category: "aerospace" },
+  { id: "aero-structures", label: "Aircraft structural design", category: "aerospace" },
+  { id: "avionics", label: "Avionics", category: "aerospace" },
+
+  // biomedical
+  { id: "biomechanics", label: "Biomechanics", category: "biomedical" },
+  { id: "med-device", label: "Medical device design", category: "biomedical" },
+  { id: "biomaterials", label: "Biomaterials", category: "biomedical" },
+  { id: "physio-modeling", label: "Physiological modeling", category: "biomedical" },
+  { id: "biosignal", label: "Biosignal processing (ECG/EEG)", category: "biomedical" },
+  { id: "fda-basics", label: "Regulatory & FDA basics", category: "biomedical" },
+
+  // environmental
+  { id: "water-treatment", label: "Water & wastewater treatment", category: "environmental" },
+  { id: "air-quality", label: "Air quality engineering", category: "environmental" },
+  { id: "eia", label: "Environmental impact assessment", category: "environmental" },
+  { id: "sustainability-lca", label: "Sustainability & life-cycle assessment", category: "environmental" },
+  { id: "waste-mgmt", label: "Waste management", category: "environmental" },
+  { id: "remote-sensing-env", label: "Remote sensing", category: "environmental" },
+
+  // industrial
+  { id: "manufacturing", label: "Manufacturing processes", category: "industrial" },
+  { id: "lean-six-sigma", label: "Lean / Six Sigma", category: "industrial" },
+  { id: "supply-chain", label: "Supply chain & logistics", category: "industrial" },
+  { id: "quality-control", label: "Quality control (SPC)", category: "industrial" },
+  { id: "ergonomics", label: "Ergonomics / human factors", category: "industrial" },
+  { id: "ops-research", label: "Operations research", category: "industrial" },
 ];
 
 export const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));

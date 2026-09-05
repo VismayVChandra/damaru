@@ -303,9 +303,9 @@ src/
       browser.ts                browser client
       types.ts                  hand-written Database type for supabase-js
     catalog/
-      skills.ts               73 skills across 11 categories
+      skills.ts               121 skills across 19 categories (11 software, 8 non-software engineering)
       domains.ts               18 domains (frictions live in Postgres)
-      blocks.ts                 22 mechanics, 12 artifacts, 16 twists
+      blocks.ts                 30 mechanics, 14 artifacts, 18 twists
     engine/
       index.ts                candidate selection  <- the LLM seam
       fit.ts                   doability scoring

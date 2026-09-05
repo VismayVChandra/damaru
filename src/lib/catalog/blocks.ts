@@ -203,6 +203,86 @@ export const MECHANICS: Mechanic[] = [
     requirement: "Build a core loop that is still worth doing on the twentieth attempt, and instrument it so you can see where people stop.",
     teaches: "pacing, feedback loops and playtesting as a measurement discipline",
   },
+
+  // --- Non-software engineering ----------------------------------------
+  // Each of these requires exactly one of the new engineering categories,
+  // never combined with another - unlike the software mechanics above,
+  // whose cross-category combos (e.g. ml + hardware) are real skill
+  // overlaps within one field. Mechanical and electrical and civil are
+  // separate disciplines; requiring more than one at once would wrongly
+  // block a person who only has one of them.
+  {
+    id: "structural",
+    artifacts: ["prototype", "analysis"],
+    label: "sizing a structure or mechanism so it survives real loads",
+    requires: ["mechanical"],
+    difficulty: 3,
+    requirement: "Size the part against a real, stated load case with a safety factor you can justify, not a number that merely looks strong enough.",
+    teaches: "stress analysis and the difference between looking strong and being sized",
+  },
+  {
+    id: "circuit-design",
+    artifacts: ["prototype", "analysis", "device"],
+    label: "designing a circuit that behaves predictably",
+    requires: ["electrical"],
+    difficulty: 3,
+    requirement: "Design and build a circuit that still works once it leaves the ideal conditions of a datasheet - real tolerances, real noise, real temperature.",
+    teaches: "circuit analysis and the gap between a schematic and the physical build",
+  },
+  {
+    id: "site-systems",
+    artifacts: ["analysis", "study"],
+    label: "designing for the site as it actually is, not an idealised one",
+    requires: ["civil"],
+    difficulty: 3,
+    requirement: "Base the design on the real conditions of the specific site - its soil, its water, its loads - not a generic textbook assumption.",
+    teaches: "site-specific load paths and designing for the worst realistic case, not the average one",
+  },
+  {
+    id: "process-design",
+    artifacts: ["analysis", "study"],
+    label: "engineering a process that stays safe and controllable at scale",
+    requires: ["chemical"],
+    difficulty: 3,
+    requirement: "Show the mass and energy balance for the process at the scale it would actually run, and name the failure mode that only appears once you leave the lab bench.",
+    teaches: "why lab-scale success does not guarantee plant-scale success",
+  },
+  {
+    id: "flight-dynamics",
+    artifacts: ["analysis", "prototype"],
+    label: "keeping something stable while it moves through a fluid",
+    requires: ["aerospace"],
+    difficulty: 3,
+    requirement: "Show the stability margin under a real disturbance, not just steady, ideal conditions.",
+    teaches: "aerodynamics, stability margins and the cost of being wrong in the air",
+  },
+  {
+    id: "biomech-design",
+    artifacts: ["prototype", "analysis"],
+    label: "designing for a body that will not read the spec sheet",
+    requires: ["biomedical"],
+    difficulty: 3,
+    requirement: "Design around real human variation - not one idealised body - and be explicit about who it was and wasn't tested with.",
+    teaches: "biocompatibility, human variability and designing around a regulator's questions",
+  },
+  {
+    id: "environmental-system",
+    artifacts: ["analysis", "study"],
+    label: "engineering within a hard environmental limit",
+    requires: ["environmental"],
+    difficulty: 2,
+    requirement: "Measure against a real, named limit or standard, not a vague sense of 'better than before.'",
+    teaches: "environmental constraints, monitoring and designing for compliance over time, not a single test",
+  },
+  {
+    id: "manufacturability",
+    artifacts: ["prototype", "analysis"],
+    label: "designing something that can be built the same way twice",
+    requires: ["industrial"],
+    difficulty: 2,
+    requirement: "Design for the tenth unit, not just the first - state the tolerances and the process, and show what breaks if either drifts.",
+    teaches: "process capability and designing for the person who builds the tenth one, not just the first",
+  },
 ];
 
 /** The shape of the thing that ships. */
@@ -315,6 +395,27 @@ export const ARTIFACTS: Artifact[] = [
     weight: 1,
     deliverable: "a public writeup with reproducible analysis, the raw data, and a finding somebody would argue with",
   },
+  {
+    id: "prototype",
+    label: "Physical prototype",
+    phrase: "a physical prototype",
+    // Deliberately empty - the paired mechanic (structural, circuit-design,
+    // biomech-design, ...) is what supplies the actual discipline
+    // requirement. This artifact is just the shipping format.
+    requires: [],
+    nice: ["industrial"],
+    weight: 3,
+    deliverable: "a working physical prototype with CAD files or drawings, a bill of materials, and evidence it meets a stated spec",
+  },
+  {
+    id: "analysis",
+    label: "Engineering analysis",
+    phrase: "an engineering analysis",
+    requires: [],
+    nice: ["data"],
+    weight: 2,
+    deliverable: "a calculation- or simulation-backed report with its assumptions stated up front, checked against a hand-calculation or a real measurement",
+  },
 ];
 
 /**
@@ -326,11 +427,13 @@ export const TWISTS: Twist[] = [
     id: "offline",
     text: "It has to keep working with no internet connection at all, and reconcile later.",
     teaches: "local-first design and merge conflict resolution",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "no-account",
     text: "Nobody should have to create an account to get value out of it.",
     teaches: "designing trust and continuity without identity",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "zero-cost",
@@ -346,16 +449,19 @@ export const TWISTS: Twist[] = [
     id: "explainable",
     text: "Every automated decision has to come with a plain-language reason a sceptic would accept.",
     teaches: "explainability and designing for justified trust",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "one-file",
     text: "The entire thing has to fit in a single file that someone could read in one sitting.",
     teaches: "radical simplicity and resisting premature abstraction",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "cheap-phone",
     text: "It has to be usable on a five-year-old budget phone on a bad connection.",
     teaches: "performance budgets and designing for the constrained majority",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "no-training",
@@ -366,6 +472,7 @@ export const TWISTS: Twist[] = [
     id: "keyboard-only",
     text: "It must be fully operable by keyboard and screen reader alone.",
     teaches: "real accessibility rather than retrofitted accessibility",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "hostile-data",
@@ -381,11 +488,13 @@ export const TWISTS: Twist[] = [
     id: "private",
     text: "The sensitive data must never leave the user's own device.",
     teaches: "client-side processing and privacy-preserving architecture",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "no-new-tool",
     text: "It cannot ask anyone to adopt a new tool, so it has to work inside what they already use.",
     teaches: "integration-first thinking and meeting users where they are",
+    excludeArtifacts: ["prototype", "analysis"],
   },
   {
     id: "one-screen",
@@ -401,6 +510,16 @@ export const TWISTS: Twist[] = [
     id: "two-hundred",
     text: "It has to still be correct and fast at two hundred times the data you test with.",
     teaches: "scale testing and finding the bottleneck before users do",
+  },
+  {
+    id: "margin",
+    text: "It has to keep working even if a real measurement comes in twenty percent worse than your best estimate.",
+    teaches: "safety factors and designing for the estimate being wrong, not just for the estimate",
+  },
+  {
+    id: "verify-by-hand",
+    text: "Someone with none of your tools or software must be able to check your answer is reasonable by hand.",
+    teaches: "sanity-checking, order-of-magnitude reasoning and distrust of a number you can't independently verify",
   },
 ];
 

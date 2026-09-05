@@ -210,6 +210,13 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
         continue;
       }
 
+      // A twist like "must fit in a single file" is nonsense for a physical
+      // prototype - exclude whatever doesn't apply to this artifact rather
+      // than picking from the full list unconditionally.
+      const eligibleTwists = TWISTS.filter(
+        (t) => !(t.excludeArtifacts ?? []).includes(combo.artifact.id),
+      );
+
       const dna: ProblemDNA = {
         domainId: domain.id,
         frictionId: friction.id,
@@ -217,7 +224,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
         friction: friction.text,
         mechanicId: combo.mechanic.id,
         artifactId: combo.artifact.id,
-        twistId: pick(rng, TWISTS).id,
+        twistId: pick(rng, eligibleTwists.length > 0 ? eligibleTwists : TWISTS).id,
         signal: pick(rng, domain.signals),
       };
 

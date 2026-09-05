@@ -38,6 +38,14 @@ const MECHANIC_ACTION: Record<string, string> = {
   simulate: "Show what would happen instead",
   privacy: "Handle it without ever seeing it",
   gameloop: "Make it worth doing twenty times",
+  structural: "Prove it won't break",
+  "circuit-design": "Make the circuit behave",
+  "site-systems": "Design for the real site",
+  "process-design": "Make the process scale",
+  "flight-dynamics": "Keep it stable in the air",
+  "biomech-design": "Design for a real body",
+  "environmental-system": "Prove it meets the limit",
+  manufacturability: "Make it buildable twice",
 };
 
 const HOOK_OPENERS = [
