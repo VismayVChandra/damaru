@@ -18,17 +18,21 @@ export default function ReviewPage() {
   const [status, setStatus] = useState<FrictionRecord["status"]>("pending");
   const [frictions, setFrictions] = useState<FrictionRecord[]>([]);
   const [feedback, setFeedback] = useState<Record<string, FeedbackCounts>>({});
+  const [issued, setIssued] = useState<Record<string, number>>({});
   const [state, setState] = useState<"loading" | "ready" | "denied">("loading");
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback((next: FrictionRecord["status"]) => {
     setState("loading");
-    api<{ frictions: FrictionRecord[]; feedback: Record<string, FeedbackCounts> }>(
-      `/api/admin/frictions?status=${next}`,
-    )
-      .then(({ frictions, feedback }) => {
+    api<{
+      frictions: FrictionRecord[];
+      feedback: Record<string, FeedbackCounts>;
+      issued: Record<string, number>;
+    }>(`/api/admin/frictions?status=${next}`)
+      .then(({ frictions, feedback, issued }) => {
         setFrictions(frictions);
         setFeedback(feedback);
+        setIssued(issued);
         setState("ready");
       })
       .catch(() => setState("denied"));
@@ -96,6 +100,7 @@ export default function ReviewPage() {
           {frictions.map((f) => {
             const domain = DOMAIN_BY_ID.get(f.domainId);
             const tally = feedback[f.id];
+            const timesIssued = issued[f.id] ?? 0;
             return (
               <div key={f.id} className="card">
                 <div className="row" style={{ justifyContent: "space-between", gap: 12 }}>
@@ -103,10 +108,11 @@ export default function ReviewPage() {
                     {domain ? `${domain.icon} ${domain.label}` : f.domainId}
                   </span>
                   <span className="row" style={{ gap: 10 }}>
-                    {tally && (tally.up > 0 || tally.down > 0) && (
-                      <span className="feedback-tally" title="Feedback from people it was issued to">
-                        {tally.up > 0 && <span className="tally-up">👍 {tally.up}</span>}
-                        {tally.down > 0 && <span className="tally-down">👎 {tally.down}</span>}
+                    {status === "accepted" && (
+                      <span className="feedback-tally" title="How this friction has done since acceptance">
+                        {tally && tally.up > 0 && <span className="tally-up">👍 {tally.up}</span>}
+                        {tally && tally.down > 0 && <span className="tally-down">👎 {tally.down}</span>}
+                        <span className="faint">{timesIssued} issued</span>
                       </span>
                     )}
                     <span className="faint mono" style={{ fontSize: 11.5 }}>

@@ -498,6 +498,23 @@ export async function getFrictionFeedbackCounts(): Promise<Map<string, FrictionF
   return counts;
 }
 
+/** How many problems have ever been drawn from each friction, feedback or not. */
+export async function getFrictionIssuedCounts(): Promise<Map<string, number>> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("friction_id")
+    .not("friction_id", "is", null);
+
+  if (error) throw error;
+
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const { friction_id } = row as { friction_id: string };
+    counts.set(friction_id, (counts.get(friction_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export async function countAcceptedFrictions(): Promise<number> {
   const { count, error } = await getAdminClient()
     .from("frictions")
