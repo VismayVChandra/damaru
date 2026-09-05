@@ -37,12 +37,27 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Body must be JSON." }, { status: 400 });
   }
 
-  const patch: { status?: Problem["status"]; notes?: string; checklist?: Checklist } = {};
+  const patch: {
+    status?: Problem["status"];
+    notes?: string;
+    checklist?: Checklist;
+    feedback?: Problem["feedback"];
+  } = {};
   if (typeof body.status === "string" && STATUSES.includes(body.status as Problem["status"])) {
     patch.status = body.status as Problem["status"];
   }
   if (typeof body.notes === "string") {
     patch.notes = body.notes.slice(0, 4000);
+  }
+  if ("feedback" in body) {
+    // Explicit null clears it (clicking an already-active thumb again), so
+    // this has to distinguish "not sent" from "sent as null" - only present
+    // the key to updateProblem when the client actually meant to change it.
+    if (body.feedback === "up" || body.feedback === "down" || body.feedback === null) {
+      patch.feedback = body.feedback;
+    } else {
+      return NextResponse.json({ error: "Feedback must be up, down, or null." }, { status: 400 });
+    }
   }
   if (body.checklist && typeof body.checklist === "object" && !Array.isArray(body.checklist)) {
     // Keep only keys this problem actually has, so a client cannot stuff

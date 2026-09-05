@@ -137,6 +137,8 @@ interface ProblemRow {
   status: Problem["status"];
   notes: string;
   checklist: Checklist | null;
+  feedback: Problem["feedback"];
+  friction_id: string | null;
   created_at: string;
   /** Present only on queries that embed the relation. */
   progress_entries?: ProgressRow[];
@@ -161,6 +163,7 @@ function rowToProblem(row: ProblemRow): Problem {
     notes: row.notes,
     // Rows written before the checklist column existed come back null.
     checklist: row.checklist ?? {},
+    feedback: row.feedback ?? null,
     ...(row.progress_entries
       ? {
           progress: [...row.progress_entries]
@@ -187,8 +190,19 @@ export async function allFingerprints(): Promise<Set<string>> {
  * claimed it first, which the caller treats as "draw again".
  */
 export async function insertProblem(problem: Problem): Promise<Problem | null> {
-  const { id, fingerprint, profileId, payload, status, notes, domainId, fit, difficulty, createdAt } =
-    packProblem(problem);
+  const {
+    id,
+    fingerprint,
+    profileId,
+    payload,
+    status,
+    notes,
+    domainId,
+    frictionId,
+    fit,
+    difficulty,
+    createdAt,
+  } = packProblem(problem);
 
   const { data, error } = await getAdminClient()
     .from("problems")
@@ -200,6 +214,7 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
       status,
       notes,
       domain_id: domainId,
+      friction_id: frictionId,
       fit,
       difficulty,
       created_at: createdAt,
@@ -223,6 +238,7 @@ function packProblem(problem: Problem) {
     status,
     notes,
     checklist,
+    feedback,
     progress,
     createdAt,
     dna,
@@ -237,6 +253,7 @@ function packProblem(problem: Problem) {
     notes,
     createdAt,
     domainId: dna.domainId,
+    frictionId: dna.frictionId,
     fit: fit.score,
     difficulty: fit.difficulty,
     payload: { ...rest, dna, fit },
@@ -267,7 +284,12 @@ export async function listProblemsForProfile(profileId: string): Promise<Problem
 
 export async function updateProblem(
   id: string,
-  patch: { status?: Problem["status"]; notes?: string; checklist?: Checklist },
+  patch: {
+    status?: Problem["status"];
+    notes?: string;
+    checklist?: Checklist;
+    feedback?: Problem["feedback"];
+  },
 ): Promise<Problem | null> {
   const existing = await getProblem(id);
   if (!existing) return null;
@@ -278,6 +300,7 @@ export async function updateProblem(
       status: patch.status ?? existing.status,
       notes: patch.notes ?? existing.notes,
       checklist: patch.checklist ?? existing.checklist,
+      feedback: "feedback" in patch ? patch.feedback : existing.feedback,
     })
     .eq("id", id);
 
@@ -426,6 +449,35 @@ export async function reviewFriction(
 
   if (error) throw error;
   return data ? rowToFriction(data as FrictionRow) : null;
+}
+
+export interface FrictionFeedbackCounts {
+  up: number;
+  down: number;
+}
+
+/**
+ * Up/down tallies per friction, from problems whose owner has actually
+ * weighed in. Aggregated in Node rather than SQL - club-scale data, and it
+ * avoids reaching for an RPC just to GROUP BY two columns.
+ */
+export async function getFrictionFeedbackCounts(): Promise<Map<string, FrictionFeedbackCounts>> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("friction_id, feedback")
+    .not("friction_id", "is", null)
+    .not("feedback", "is", null);
+
+  if (error) throw error;
+
+  const counts = new Map<string, FrictionFeedbackCounts>();
+  for (const row of data ?? []) {
+    const { friction_id, feedback } = row as { friction_id: string; feedback: "up" | "down" };
+    const entry = counts.get(friction_id) ?? { up: 0, down: 0 };
+    entry[feedback]++;
+    counts.set(friction_id, entry);
+  }
+  return counts;
 }
 
 export async function countAcceptedFrictions(): Promise<number> {

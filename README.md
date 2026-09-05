@@ -218,6 +218,31 @@ survives profile edits and cannot be granted through the API.
 
 ---
 
+## Triage and feedback
+
+A freshly generated batch is 3-5 problems, each several screens long once
+expanded. Reading all of them in full before deciding on any is the wrong
+default, so `/generate` hands a batch to `<SwipeTriage>` instead of a flat list:
+a compact card (title, hook, fit%), decided by drag, tap, or the arrow keys,
+with an explicit "read the full brief" escape hatch before committing — nobody
+should be swiping blind on something they might spend weeks building.
+
+Swiping does not invent new state. It writes the same `saved` / `passed`
+statuses the dashboard already understands, just with a faster gesture for the
+one moment - right after generation - where that's the only decision that
+matters.
+
+Each `ProblemCard` also carries a 👍/👎: not a rating of the person, a signal on
+whether *this friction* actually produced a good problem for them. That only
+means something once it can be traced back to where it came from, so
+`ProblemDNA.frictionId` links every problem to the specific catalogue row it
+was drawn from - added at generation time in `engine/index.ts`, not
+reconstructed later by matching text. `/admin/frictions` rolls the tally up
+per friction on the accepted tab, so a friction that is quietly producing bad
+matches is visible rather than assumed.
+
+---
+
 ## Deploying to Vercel
 
 1. Push this repo to GitHub (already done if you're reading this from the repo).
@@ -258,8 +283,15 @@ src/
       profile/               GET / POST (session-scoped)
       generate/               POST { count } (session-scoped)
       problems/                GET (your problems, session-scoped)
-      problems/[id]/            PATCH { status, notes } - ownership-checked
+      problems/[id]/            PATCH { status, notes, checklist, feedback } - ownership-checked
+      problems/[id]/progress/    POST one "what moved" line
+      frictions/                GET/POST your own submissions
+      admin/frictions/           GET review queue + feedback tally (is_admin only)
+      admin/frictions/[id]/       PATCH accept/reject
+      pair/                    GET complements + recurring gap
       stats/                  GET counts
+  components/
+    SwipeTriage.tsx          drag/tap/arrow-key triage for a freshly generated batch
   lib/
     types.ts                shared domain types
     db.ts                   Postgres data access via the service-role client

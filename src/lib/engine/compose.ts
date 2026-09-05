@@ -104,7 +104,7 @@ export interface ComposeInput {
 
 export function compose(
   input: ComposeInput,
-): Omit<Problem, "id" | "status" | "notes" | "checklist" | "progress" | "createdAt"> {
+): Omit<Problem, "id" | "status" | "notes" | "checklist" | "feedback" | "progress" | "createdAt"> {
   const { dna, domain, mechanic, artifact, twist, fit, profile, caveat } = input;
   const fp = fingerprint(dna);
   const rng = seededRandom(fp);

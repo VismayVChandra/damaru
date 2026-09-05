@@ -128,6 +128,8 @@ export interface Twist {
 
 export interface ProblemDNA {
   domainId: string;
+  /** The specific catalogue row this came from - null only for problems generated before this existed. */
+  frictionId: string | null;
   actor: string;
   friction: string;
   mechanicId: string;
@@ -149,12 +151,20 @@ export interface FitBreakdown {
 
 /**
  * The immutable half of a problem - everything decided at issue time, stored
- * as a single jsonb column. Status, notes, checklist and progress are mutable
- * and live in their own columns/table.
+ * as a single jsonb column. Status, notes, checklist, feedback and progress
+ * are mutable and live in their own columns/table.
  */
 export type ProblemPayload = Omit<
   Problem,
-  "id" | "fingerprint" | "profileId" | "status" | "notes" | "checklist" | "progress" | "createdAt"
+  | "id"
+  | "fingerprint"
+  | "profileId"
+  | "status"
+  | "notes"
+  | "checklist"
+  | "feedback"
+  | "progress"
+  | "createdAt"
 >;
 
 /** One line of "what moved", appended to a problem over time. */
@@ -194,6 +204,8 @@ export interface Problem {
   domainIcon: string;
   status: "new" | "saved" | "building" | "shipped" | "passed";
   notes: string;
+  /** Was this friction, for this person, actually a good problem? Their call alone. */
+  feedback: "up" | "down" | null;
   checklist: Checklist;
   /** Loaded alongside the problem where the view needs it; newest first. */
   progress?: ProgressEntry[];

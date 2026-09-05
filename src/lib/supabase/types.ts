@@ -51,7 +51,9 @@ export interface Database {
           status: Problem["status"];
           notes: string;
           checklist: Checklist;
+          feedback: Problem["feedback"];
           domain_id: string;
+          friction_id: string | null;
           fit: number;
           difficulty: number;
           created_at: string;
@@ -64,7 +66,9 @@ export interface Database {
           status: Problem["status"];
           notes: string;
           checklist?: Checklist;
+          feedback?: Problem["feedback"];
           domain_id: string;
+          friction_id?: string | null;
           fit: number;
           difficulty: number;
           created_at: string;
@@ -73,6 +77,7 @@ export interface Database {
           status?: Problem["status"];
           notes?: string;
           checklist?: Checklist;
+          feedback?: Problem["feedback"];
         };
         Relationships: [
           {
@@ -80,6 +85,13 @@ export interface Database {
             columns: ["profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "problems_friction_id_fkey";
+            columns: ["friction_id"];
+            isOneToOne: false;
+            referencedRelation: "frictions";
             referencedColumns: ["id"];
           },
         ];

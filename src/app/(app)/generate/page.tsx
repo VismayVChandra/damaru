@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import ProblemCard from "@/components/ProblemCard";
+import SwipeTriage from "@/components/SwipeTriage";
 import { api } from "@/lib/client";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import type { Problem, Profile } from "@/lib/types";
@@ -17,6 +17,9 @@ const WAITING_LINES = [
 export default function GeneratePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
+  // Forces SwipeTriage to remount on each new batch, rather than trying to
+  // reconcile a fresh problem list into an in-progress triage session.
+  const [batch, setBatch] = useState(0);
   const [count, setCount] = useState(3);
   const [loading, setLoading] = useState(false);
   const [line, setLine] = useState(0);
@@ -49,6 +52,7 @@ export default function GeneratePage() {
         body: JSON.stringify({ count }),
       });
       setProblems(problems);
+      setBatch((b) => b + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed.");
     } finally {
@@ -155,15 +159,15 @@ export default function GeneratePage() {
         </div>
       )}
 
-      <div className="stack section" style={{ gap: 24 }}>
-        {problems.map((p) => (
-          <ProblemCard key={p.id} problem={p} interactive />
-        ))}
-      </div>
+      {problems.length > 0 && (
+        <div className="section">
+          <SwipeTriage key={batch} problems={problems} />
+        </div>
+      )}
 
       {problems.length > 0 && (
-        <div className="row section" style={{ gap: 12 }}>
-          <Link href="/dashboard" className="btn">
+        <div className="row section" style={{ gap: 12, justifyContent: "center" }}>
+          <Link href="/dashboard" className="btn btn-sm">
             See everything you have been given
           </Link>
         </div>

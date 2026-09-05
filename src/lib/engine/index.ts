@@ -1,4 +1,4 @@
-import type { Artifact, Friction, Mechanic, Problem, ProblemDNA, Profile } from "@/lib/types";
+import type { Artifact, FrictionRecord, Mechanic, Problem, ProblemDNA, Profile } from "@/lib/types";
 import { DOMAINS, DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { ARTIFACT_BY_ID, MECHANICS, MECHANIC_BY_ID, TWISTS } from "@/lib/catalog/blocks";
 import { appetiteTarget, categoryStrengths, isDoable, scoreFit } from "./fit";
@@ -8,19 +8,23 @@ import { fingerprint, pick, seededRandom } from "./novelty";
 
 export type GeneratedProblem = Omit<
   Problem,
-  "id" | "status" | "notes" | "checklist" | "progress" | "createdAt"
+  "id" | "status" | "notes" | "checklist" | "feedback" | "progress" | "createdAt"
 >;
 
 /**
  * The friction catalogue, grouped by domain. Passed in rather than loaded
  * here: frictions now live in Postgres, and keeping the engine a pure
  * function of (profile, catalogue) leaves it synchronous and testable.
+ *
+ * Carries the full `FrictionRecord` (not just the bare actor/text/mechanics)
+ * so `friction.id` can flow into `dna.frictionId` - the link that lets
+ * feedback roll up per catalogue entry rather than floating per problem.
  */
-export type FrictionIndex = Map<string, Friction[]>;
+export type FrictionIndex = Map<string, FrictionRecord[]>;
 
-export function indexFrictions(frictions: { domainId: string }[]): FrictionIndex {
+export function indexFrictions(frictions: FrictionRecord[]): FrictionIndex {
   const index: FrictionIndex = new Map();
-  for (const f of frictions as (Friction & { domainId: string })[]) {
+  for (const f of frictions) {
     const list = index.get(f.domainId);
     if (list) list.push(f);
     else index.set(f.domainId, [f]);
@@ -185,7 +189,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
 
       const pool = frictions.get(domain.id);
       if (!pool || pool.length === 0) continue;
-      const friction: Friction = pick(rng, pool);
+      const friction: FrictionRecord = pick(rng, pool);
       const frictionKey = `${domain.id}:${friction.text}`;
       if (usedFrictions.has(frictionKey)) continue;
 
@@ -208,6 +212,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
 
       const dna: ProblemDNA = {
         domainId: domain.id,
+        frictionId: friction.id,
         actor: friction.actor,
         friction: friction.text,
         mechanicId: combo.mechanic.id,

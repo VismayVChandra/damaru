@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getProfileById, listFrictionsByStatus } from "@/lib/db";
+import { getFrictionFeedbackCounts, getProfileById, listFrictionsByStatus } from "@/lib/db";
 import type { FrictionRecord } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -23,5 +23,14 @@ export async function GET(request: Request) {
     ? (raw as FrictionRecord["status"])
     : "pending";
 
-  return NextResponse.json({ frictions: await listFrictionsByStatus(status), status });
+  const frictions = await listFrictionsByStatus(status);
+
+  // Only accepted frictions can have been drawn from by the generator, so
+  // there is nothing to tally for pending/rejected - skip the extra query.
+  const feedback =
+    status === "accepted"
+      ? Object.fromEntries(await getFrictionFeedbackCounts())
+      : {};
+
+  return NextResponse.json({ frictions, status, feedback });
 }

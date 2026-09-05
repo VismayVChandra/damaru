@@ -81,6 +81,17 @@ create table frictions (
   constraint friction_mechanics    check (array_length(mechanics, 1) between 1 and 8)
 );
 
+-- References the specific catalogue row a problem was drawn from, so
+-- feedback can roll up per friction rather than floating per problem. An
+-- `alter` here, not inline on `problems`: `frictions` is only created above,
+-- after `problems` already is.
+alter table problems
+  add column friction_id uuid references frictions(id) on delete set null;
+
+alter table problems
+  add column feedback text
+    check (feedback is null or feedback in ('up', 'down'));
+
 create index idx_frictions_status on frictions(status);
 create index idx_frictions_submitter on frictions(submitted_by);
 create unique index idx_frictions_unique on frictions(domain_id, lower(btrim(text)));
@@ -88,6 +99,7 @@ create unique index idx_frictions_unique on frictions(domain_id, lower(btrim(tex
 create index idx_problems_profile on problems(profile_id);
 create index idx_problems_created on problems(created_at desc);
 create index idx_progress_problem on progress_entries(problem_id, created_at desc);
+create index idx_problems_friction on problems(friction_id);
 
 -- Row Level Security. The app server talks to Postgres with the service-role
 -- key and bypasses RLS entirely (it is the trusted gatekeeper - every API

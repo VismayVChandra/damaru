@@ -82,6 +82,7 @@ export default function ProblemCard({
   interactive?: boolean;
 }) {
   const [status, setStatus] = useState<Problem["status"]>(problem.status);
+  const [feedback, setFeedbackState] = useState<Problem["feedback"]>(problem.feedback ?? null);
   const [checklist, setChecklist] = useState<Checklist>(problem.checklist ?? {});
   // Ticking two boxes quickly would otherwise build both updates from the same
   // render's `checklist`, and the second write would drop the first.
@@ -96,6 +97,22 @@ export default function ProblemCard({
 
   const done = checklistProgress(problem, checklist);
   const idle = idleDays({ ...problem, status, progress });
+
+  async function setFeedback(next: Problem["feedback"]) {
+    // Clicking the already-active thumb clears it - there is no third state
+    // to cycle through, just on/off for each direction.
+    const value = feedback === next ? null : next;
+    const previous = feedback;
+    setFeedbackState(value);
+    try {
+      await api(`/api/problems/${problem.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ feedback: value }),
+      });
+    } catch {
+      setFeedbackState(previous);
+    }
+  }
 
   async function changeStatus(next: Problem["status"]) {
     const previous = status;
@@ -382,6 +399,30 @@ export default function ProblemCard({
         <span className="fingerprint" title="Globally unique — no one else has this problem">
           #{problem.fingerprint}
         </span>
+        {interactive && (
+          <span className="feedback-row" title="Was this a good problem? Feeds back into the catalogue.">
+            <button
+              type="button"
+              className="feedback-btn"
+              data-on={feedback === "up" ? "true" : "false"}
+              onClick={() => setFeedback("up")}
+              aria-label="Good problem"
+              aria-pressed={feedback === "up"}
+            >
+              👍
+            </button>
+            <button
+              type="button"
+              className="feedback-btn"
+              data-on={feedback === "down" ? "true" : "false"}
+              onClick={() => setFeedback("down")}
+              aria-label="Not for me"
+              aria-pressed={feedback === "down"}
+            >
+              👎
+            </button>
+          </span>
+        )}
         <span className="nav-spacer" />
         {interactive && (
           <>
