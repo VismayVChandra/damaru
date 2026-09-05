@@ -1,6 +1,7 @@
 import { login } from "@/app/auth/actions";
 import AuthPitch from "@/components/AuthPitch";
 import AuthToggle from "@/components/AuthToggle";
+import SubmitButton from "@/components/SubmitButton";
 
 export default async function LoginPage({
   searchParams,
@@ -43,9 +44,9 @@ export default async function LoginPage({
             </label>
             <input id="password" name="password" type="password" className="input" required />
           </div>
-          <button type="submit" className="btn btn-primary btn-lg auth-submit">
+          <SubmitButton className="btn btn-primary btn-lg auth-submit" pendingText="Signing in…">
             Sign in
-          </button>
+          </SubmitButton>
         </form>
 
         <p className="faint" style={{ marginTop: 16, fontSize: 13 }}>

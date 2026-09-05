@@ -40,6 +40,15 @@ export async function signup(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) {
+    // Supabase's own message here ("User already registered") leaves the
+    // person stuck on this page with no obvious next step - point them at
+    // the form that actually works instead of making them notice and
+    // navigate there themselves.
+    if (/already registered|already exists/i.test(error.message)) {
+      redirect(
+        `/login?notice=${encodeURIComponent("That email already has an account - sign in instead.")}`,
+      );
+    }
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
 

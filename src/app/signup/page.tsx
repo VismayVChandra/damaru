@@ -1,6 +1,7 @@
 import { signup } from "@/app/auth/actions";
 import AuthPitch from "@/components/AuthPitch";
 import AuthToggle from "@/components/AuthToggle";
+import SubmitButton from "@/components/SubmitButton";
 
 export default async function SignupPage({
   searchParams,
@@ -45,9 +46,9 @@ export default async function SignupPage({
               At least 8 characters.
             </p>
           </div>
-          <button type="submit" className="btn btn-primary btn-lg auth-submit">
+          <SubmitButton className="btn btn-primary btn-lg auth-submit" pendingText="Creating account…">
             Create account
-          </button>
+          </SubmitButton>
         </form>
 
         <p className="faint" style={{ marginTop: 16, fontSize: 13 }}>
