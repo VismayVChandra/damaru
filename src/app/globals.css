@@ -1089,6 +1089,51 @@ h3 {
   padding: 40px 28px;
 }
 
+/* Pinned to the viewport, not the triage column, so it reads the same
+   whichever card (or the done screen) is behind it. */
+.triage-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lift);
+  font-size: 14px;
+  animation: toast-in 220ms ease;
+}
+
+.triage-toast-undo {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--ember);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.triage-toast-undo:hover {
+  text-decoration: underline;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* Tertiary on purpose - reroll is an escape hatch, not a third equal choice
    next to Pass/Save. */
 .triage-reroll {

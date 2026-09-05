@@ -161,7 +161,7 @@ export default function GeneratePage() {
 
       {problems.length > 0 && (
         <div className="section">
-          <SwipeTriage key={batch} problems={problems} />
+          <SwipeTriage key={batch} problems={problems} onGenerateAgain={generate} />
         </div>
       )}
 
