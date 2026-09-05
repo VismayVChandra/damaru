@@ -49,6 +49,16 @@ body {
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   background: var(--ground);
   color: var(--text);
@@ -86,7 +96,7 @@ textarea:focus-visible,
 /* --- Layout ---------------------------------------------------------------- */
 
 .shell {
-  max-width: 1080px;
+  max-width: 1020px;
   margin: 0 auto;
   padding: 0 20px 96px;
 }
@@ -383,6 +393,25 @@ h3 {
   border: 1px solid var(--border-recessed);
   border-radius: var(--radius-lg);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  padding: 22px;
+}
+
+/* --- Profile builder jump-nav ----------------------------------------------
+   Five panels of real length; a sticky row of anchor links below the global
+   nav means never scrolling blind past sections that don't apply yet. */
+
+.profile-subnav {
+  position: sticky;
+  top: 64px;
+  z-index: 15;
+  background: color-mix(in srgb, var(--ground) 92%, transparent);
+  backdrop-filter: blur(10px);
+  padding: 10px 0;
+  margin-top: 20px;
+}
+
+.profile-panel {
+  scroll-margin-top: 108px;
 }
 
 .section {
@@ -513,6 +542,7 @@ h3 {
   background: var(--panel);
   font-size: 13px;
   cursor: pointer;
+  text-decoration: none;
   transition: all 110ms ease;
   text-align: left;
 }
@@ -594,7 +624,14 @@ h3 {
 
 .level-btn[data-on="true"] {
   background: var(--ember);
-  color: #fff;
+  color: #fff6f2;
+}
+
+/* "Strong" reads as a different claim than "learning"/"ok" - not just a
+   deeper shade of the same tint. */
+.level-btn[data-level="3"][data-on="true"] {
+  background: var(--good);
+  color: #0e1a0d;
 }
 
 /* --- Skill category accordion ---------------------------------------------

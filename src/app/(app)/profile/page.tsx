@@ -28,6 +28,14 @@ const APPETITE_OPTIONS: { id: Appetite; label: string; hint: string }[] = [
   { id: "deepend", label: "Throw me in", hint: "I want to be out of my depth and learn fast" },
 ];
 
+const JUMP_LINKS = [
+  { id: "sec-basics", label: "Basics" },
+  { id: "sec-skills", label: "Skills" },
+  { id: "sec-interests", label: "Interests" },
+  { id: "sec-make", label: "Make" },
+  { id: "sec-constraints", label: "Constraints" },
+];
+
 export default function ProfilePage() {
   const router = useRouter();
 
@@ -168,7 +176,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="shell shell-narrow">
+    <main className="shell">
       <div className="eyebrow">Step one</div>
       <h1>Who are you, technically?</h1>
       <p className="lede" style={{ marginTop: 14 }}>
@@ -176,8 +184,16 @@ export default function ProfilePage() {
         can finish, and overstating a skill is how you end up with something you abandon.
       </p>
 
+      <nav className="profile-subnav row section" aria-label="Jump to section">
+        {JUMP_LINKS.map((j) => (
+          <a key={j.id} href={`#${j.id}`} className="chip">
+            {j.label}
+          </a>
+        ))}
+      </nav>
+
       {/* --- Identity --------------------------------------------------- */}
-      <section className="card section">
+      <section id="sec-basics" className="recessed profile-panel section">
         <h3>Identity</h3>
         <p className="faint" style={{ fontSize: 13, marginTop: 4, marginBottom: 16 }}>
           Your handle is how the club feed credits you. It has nothing to do with your login email.
@@ -213,7 +229,7 @@ export default function ProfilePage() {
       </section>
 
       {/* --- Skills ------------------------------------------------------ */}
-      <section className="card section">
+      <section id="sec-skills" className="recessed profile-panel section">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h3>Skills</h3>
           <span className="faint mono" style={{ fontSize: 12 }}>
@@ -255,6 +271,7 @@ export default function ProfilePage() {
                           key={lvl}
                           type="button"
                           className="level-btn"
+                          data-level={lvl}
                           data-on={us.level === lvl ? "true" : "false"}
                           onClick={() => setLevel(us.id, lvl)}
                           title={LEVEL_LABEL[lvl]}
@@ -330,7 +347,7 @@ export default function ProfilePage() {
       </section>
 
       {/* --- Interests --------------------------------------------------- */}
-      <section className="card section">
+      <section id="sec-interests" className="recessed profile-panel section">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h3>What do you care about?</h3>
           <span className="faint mono" style={{ fontSize: 12 }}>
@@ -357,7 +374,7 @@ export default function ProfilePage() {
       </section>
 
       {/* --- Shape ------------------------------------------------------- */}
-      <section className="card section">
+      <section id="sec-make" className="recessed profile-panel section">
         <h3>What do you want to make?</h3>
         <p className="faint" style={{ fontSize: 13, marginTop: 4, marginBottom: 14 }}>
           Optional. Leave it empty and you will get whatever fits best.
@@ -378,7 +395,7 @@ export default function ProfilePage() {
       </section>
 
       {/* --- Constraints -------------------------------------------------- */}
-      <section className="card section">
+      <section id="sec-constraints" className="recessed profile-panel section">
         <h3>Constraints</h3>
         <div className="stack" style={{ marginTop: 16, gap: 20 }}>
           <div>
@@ -469,25 +486,32 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="row section" style={{ gap: 12 }}>
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={save}
-          disabled={!ready || status === "saving"}
-        >
-          {status === "saving" ? (
-            <>
-              <span className="spin" /> Saving…
-            </>
-          ) : (
-            "Save and generate"
+      <div className="row section" style={{ gap: 12, justifyContent: "space-between" }}>
+        <div className="row" style={{ gap: 12 }}>
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={save}
+            disabled={!ready || status === "saving"}
+          >
+            {status === "saving" ? (
+              <>
+                <span className="spin" /> Saving…
+              </>
+            ) : (
+              "Save and generate"
+            )}
+          </button>
+          {!ready && (
+            <span style={{ fontSize: 13, color: "var(--ember)" }}>
+              Still needed: {missing.join(", ")}.
+            </span>
           )}
-        </button>
-        {!ready && (
-          <span style={{ fontSize: 13, color: "var(--ember)" }}>
-            Still needed: {missing.join(", ")}.
-          </span>
-        )}
+        </div>
+        <span className="mono faint" style={{ fontSize: 12 }}>
+          {skills.length} {skills.length === 1 ? "skill" : "skills"} · {interests.length}{" "}
+          {interests.length === 1 ? "interest" : "interests"} ·{" "}
+          {TIME_OPTIONS.find((o) => o.id === timeBudget)?.label}
+        </span>
       </div>
     </main>
   );
