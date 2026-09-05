@@ -260,6 +260,14 @@ function packProblem(problem: Problem) {
   };
 }
 
+/** Used by reroll: the old draw never really counted as issued, so it is
+ * dropped rather than kept around with some synthetic status. Cascades to
+ * its progress_entries, though a "new"-status problem should never have any. */
+export async function deleteProblem(id: string): Promise<void> {
+  const { error } = await getAdminClient().from("problems").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function getProblem(id: string): Promise<Problem | null> {
   const { data, error } = await getAdminClient()
     .from("problems")
