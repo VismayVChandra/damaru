@@ -24,7 +24,8 @@ const THRESHOLD = 100;
  *
  * Swiping and the buttons write the same statuses ("saved" / "passed") the
  * dashboard already understands - this is a faster gesture for existing
- * state, not a new concept.
+ * state, not a new concept. Reroll is the third option: not a decision, just
+ * "this domain, a different execution" - it never touches `decided`.
  */
 export default function SwipeTriage({ problems }: { problems: Problem[] }) {
   const [queue, setQueue] = useState<Problem[]>(problems);
@@ -33,13 +34,16 @@ export default function SwipeTriage({ problems }: { problems: Problem[] }) {
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [pending, setPending] = useState(false);
+  const [rerolling, setRerolling] = useState(false);
+  const [rerollError, setRerollError] = useState<string | null>(null);
   const startX = useRef(0);
 
   const top = queue[0];
   const peek = queue[1];
+  const busy = pending || rerolling;
 
   async function decide(problem: Problem, decision: Decision) {
-    if (pending) return;
+    if (busy) return;
     setPending(true);
     try {
       await api(`/api/problems/${problem.id}`, {
@@ -56,10 +60,32 @@ export default function SwipeTriage({ problems }: { problems: Problem[] }) {
     setQueue((prev) => prev.filter((p) => p.id !== problem.id));
     setExpandedId(null);
     setDragX(0);
+    setRerollError(null);
+  }
+
+  // Not a decision - swaps the same slot for a fresh draw in the same
+  // domain, so it does not touch `decided` or the "X of Y" count.
+  async function reroll(problem: Problem) {
+    if (busy) return;
+    setRerolling(true);
+    setRerollError(null);
+    try {
+      const { problem: fresh } = await api<{ problem: Problem }>(
+        `/api/problems/${problem.id}/reroll`,
+        { method: "POST" },
+      );
+      setQueue((prev) => [fresh, ...prev.slice(1)]);
+      setExpandedId(null);
+      setDragX(0);
+    } catch (e) {
+      setRerollError(e instanceof Error ? e.message : "Could not reroll that one.");
+    } finally {
+      setRerolling(false);
+    }
   }
 
   function onPointerDown(e: React.PointerEvent) {
-    if (expandedId || pending) return;
+    if (expandedId || busy) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     startX.current = e.clientX;
     setDragging(true);
@@ -80,7 +106,7 @@ export default function SwipeTriage({ problems }: { problems: Problem[] }) {
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (!top || expandedId || pending) return;
+    if (!top || expandedId || busy) return;
     if (e.key === "ArrowRight") decide(top, "saved");
     if (e.key === "ArrowLeft") decide(top, "passed");
   }
@@ -158,7 +184,12 @@ export default function SwipeTriage({ problems }: { problems: Problem[] }) {
           ) : (
             <>
               <TriageSummary problem={top} />
-              <button type="button" className="triage-expand" onClick={() => setExpandedId(top.id)}>
+              <button
+                type="button"
+                className="triage-expand"
+                onClick={() => setExpandedId(top.id)}
+                disabled={busy}
+              >
                 Read the full brief
               </button>
             </>
@@ -170,18 +201,22 @@ export default function SwipeTriage({ problems }: { problems: Problem[] }) {
         <button
           className="btn btn-lg triage-pass"
           onClick={() => decide(top, "passed")}
-          disabled={pending}
+          disabled={busy}
         >
           ✕ Pass
         </button>
         <button
           className="btn btn-lg btn-primary triage-save"
           onClick={() => decide(top, "saved")}
-          disabled={pending}
+          disabled={busy}
         >
           ✓ Save
         </button>
       </div>
+      <button type="button" className="triage-reroll" onClick={() => reroll(top)} disabled={busy}>
+        {rerolling ? "Finding something else…" : "↻ Not this one - try another in this domain"}
+      </button>
+      {rerollError && <p className="triage-reroll-error">{rerollError}</p>}
       <p className="faint" style={{ textAlign: "center", fontSize: 12, marginTop: 10 }}>
         Swipe, tap, or use the arrow keys.
       </p>

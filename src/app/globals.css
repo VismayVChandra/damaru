@@ -997,6 +997,38 @@ h3 {
   padding: 40px 28px;
 }
 
+/* Tertiary on purpose - reroll is an escape hatch, not a third equal choice
+   next to Pass/Save. */
+.triage-reroll {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 8px;
+  min-height: 36px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.triage-reroll:hover:not(:disabled) {
+  color: var(--ember);
+}
+
+.triage-reroll:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.triage-reroll-error {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
 @media (max-width: 560px) {
   .triage-summary {
     padding: 20px 18px 16px;
