@@ -96,25 +96,45 @@ export default function DashboardPage() {
       {problems.length > 0 && (
         <div className="row section" style={{ gap: 28 }}>
           <div>
-            <div className="stat">{momentum.shipped}</div>
+            <div className="stat">
+              <span className="stat-glyph" aria-hidden="true">
+                ✓
+              </span>
+              {momentum.shipped}
+            </div>
             <div className="faint" style={{ fontSize: 13 }}>
               shipped
             </div>
           </div>
           <div>
-            <div className="stat">{momentum.building}</div>
+            <div className="stat">
+              <span className="stat-glyph" aria-hidden="true">
+                ◐
+              </span>
+              {momentum.building}
+            </div>
             <div className="faint" style={{ fontSize: 13 }}>
               in progress
             </div>
           </div>
           <div>
-            <div className="stat">{momentum.ticks}</div>
+            <div className="stat">
+              <span className="stat-glyph" aria-hidden="true">
+                ☑
+              </span>
+              {momentum.ticks}
+            </div>
             <div className="faint" style={{ fontSize: 13 }}>
               {momentum.ticks === 1 ? "box ticked" : "boxes ticked"}
             </div>
           </div>
           <div>
-            <div className="stat">{momentum.logged}</div>
+            <div className="stat">
+              <span className="stat-glyph" aria-hidden="true">
+                ✎
+              </span>
+              {momentum.logged}
+            </div>
             <div className="faint" style={{ fontSize: 13 }}>
               {momentum.logged === 1 ? "progress note" : "progress notes"}
             </div>
@@ -122,6 +142,9 @@ export default function DashboardPage() {
           {momentum.idle > 0 && (
             <div>
               <div className="stat" style={{ color: "var(--warn)" }}>
+                <span className="stat-glyph" aria-hidden="true">
+                  ◌
+                </span>
                 {momentum.idle}
               </div>
               <div className="faint" style={{ fontSize: 13 }}>

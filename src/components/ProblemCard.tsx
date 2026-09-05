@@ -201,7 +201,7 @@ export default function ProblemCard({
   }
 
   return (
-    <article className="problem">
+    <article className={interactive ? "problem card-hover" : "problem"}>
       <header className="problem-head">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="chip chip-static">

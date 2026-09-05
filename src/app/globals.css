@@ -1299,6 +1299,32 @@ span.meter {
   line-height: 1.5;
 }
 
+/* Shipped work is the one feed section the handoff calls "the feed" - a
+   timeline rail down the left edge, one dot per card marking its place. */
+.feed-rail {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 24px;
+  border-left: 2px solid var(--border-strong);
+}
+
+.feed-rail .feed-row {
+  position: relative;
+}
+
+.feed-rail .feed-row::before {
+  content: "";
+  position: absolute;
+  left: -29px;
+  top: 24px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 0 3px var(--ground);
+}
+
 .feed-latest .mono {
   font-size: 10.5px;
   letter-spacing: 0.1em;
@@ -1372,6 +1398,13 @@ span.meter {
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.stat-glyph {
+  display: inline-block;
+  margin-right: 7px;
+  font-size: 18px;
+  opacity: 0.7;
 }
 
 .empty {

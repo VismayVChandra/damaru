@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
+
+const CATEGORY_COUNT = Object.keys(CATEGORY_LABELS).length;
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { api } from "@/lib/client";
 import type { PairCandidate, RecurringGap } from "@/lib/pairing";
@@ -179,8 +181,15 @@ export default function PairPage() {
 }
 
 function PairCard({ candidate }: { candidate: PairCandidate }) {
+  // How much of the whole skill-category space this pairing covers between
+  // the two of you - not a ranking of the person, just a width for the bar.
+  const matchPct = Math.min(
+    100,
+    Math.round(((candidate.theyCover.length + candidate.youCover.length) / CATEGORY_COUNT) * 100),
+  );
+
   return (
-    <div className="card">
+    <div className="card card-hover">
       <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
         <span className="mono" style={{ fontSize: 14, fontWeight: 600 }}>
           @{candidate.handle}
@@ -190,6 +199,20 @@ function PairCard({ candidate }: { candidate: PairCandidate }) {
             building {candidate.building}
           </span>
         )}
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+          <span className="block-label" style={{ margin: 0 }}>
+            Match
+          </span>
+          <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: "var(--good)" }}>
+            {matchPct}%
+          </span>
+        </div>
+        <div className="meter">
+          <div className="meter-fill is-done" style={{ width: `${Math.max(4, matchPct)}%` }} />
+        </div>
       </div>
 
       <div className="stack" style={{ gap: 14, marginTop: 16 }}>

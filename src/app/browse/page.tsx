@@ -110,10 +110,17 @@ function Section({
   title,
   blurb,
   items,
+  rail = false,
 }: {
   title: string;
   blurb: string;
   items: FeedItem[];
+  /** The one section that's actually "the feed" per the handoff spec - a
+   * timeline rail down the left edge. The other two sections here are this
+   * app's own addition (shipped-only would hide too much real state), so
+   * they stay plain lists rather than borrowing a rail that implies
+   * chronology they don't really have. */
+  rail?: boolean;
 }) {
   if (items.length === 0) return null;
   return (
@@ -127,7 +134,10 @@ function Section({
       <p className="faint" style={{ fontSize: 13.5, marginTop: 4 }}>
         {blurb}
       </p>
-      <div className="stack" style={{ gap: 14, marginTop: 18 }}>
+      <div
+        className={rail ? "feed-rail" : "stack"}
+        style={{ gap: 14, marginTop: 18 }}
+      >
         {items.map((p) => (
           <Row key={p.id} item={p} />
         ))}
@@ -199,6 +209,7 @@ export default async function BrowsePage() {
             title="Shipped"
             blurb="Finished, in someone's hands, done. This is the part worth copying."
             items={shipped}
+            rail
           />
           <Section
             title="In progress"
