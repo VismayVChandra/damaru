@@ -1,82 +1,42 @@
 /* ---------------------------------------------------------------------------
-   Damaru design tokens. Light is the base; dark is a token swap only.
+   Damaru design tokens. One theme, dark, by design - not a fallback for a
+   light mode that stopped existing when this palette shipped.
    --------------------------------------------------------------------------- */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
-  --ground: #f7f6f3;
-  --panel: #ffffff;
-  --panel-2: #f1efea;
-  --border: #e2ded5;
-  --border-strong: #cfc9bc;
+  --ground: #14100e;
+  --panel: #1c1715;
+  --panel-2: #171310;
+  --border: #332b27;
+  --border-strong: #332b27;
+  --border-subtle: #2b2320;
+  --border-recessed: #2a231f;
 
-  --text: #1b1a18;
-  --text-muted: #6b675f;
-  --text-faint: #97928a;
+  --text: #f0e9e4;
+  --text-muted: #a89c95;
+  --text-faint: #8a7d76;
 
-  --ember: #c2410c;
-  --ember-soft: #fdeee6;
-  --ember-line: #f0c4ae;
+  --ember: #d9542b;
+  --ember-soft: rgba(217, 84, 43, 0.16);
+  --ember-line: #b8563f;
 
-  --cool: #0e7490;
-  --cool-soft: #e2f4f8;
-
-  --good: #15803d;
-  --warn: #a16207;
-
-  --radius: 10px;
-  --radius-lg: 16px;
-  --shadow: 0 1px 2px rgba(27, 26, 24, 0.05), 0 8px 24px -12px rgba(27, 26, 24, 0.16);
-
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground: #0e0f13;
-    --panel: #16181f;
-    --panel-2: #1d1f28;
-    --border: #272a35;
-    --border-strong: #3a3e4c;
-
-    --text: #e9e9ec;
-    --text-muted: #9b9fad;
-    --text-faint: #6f7381;
-
-    --ember: #fb923c;
-    --ember-soft: #2a1a10;
-    --ember-line: #52301c;
-
-    --cool: #67e8f9;
-    --cool-soft: #10262c;
-
-    --good: #4ade80;
-    --warn: #fbbf24;
-
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -14px rgba(0, 0, 0, 0.8);
-  }
-}
-
-:root[data-theme="dark"] {
-  --ground: #0e0f13;
-  --panel: #16181f;
-  --panel-2: #1d1f28;
-  --border: #272a35;
-  --border-strong: #3a3e4c;
-  --text: #e9e9ec;
-  --text-muted: #9b9fad;
-  --text-faint: #6f7381;
-  --ember: #fb923c;
-  --ember-soft: #2a1a10;
-  --ember-line: #52301c;
   --cool: #67e8f9;
   --cool-soft: #10262c;
-  --good: #4ade80;
-  --warn: #fbbf24;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -14px rgba(0, 0, 0, 0.8);
+
+  --good: #6fa36a;
+  --warn: #d99d8a;
+
+  --radius: 9px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 10px 26px -14px rgba(0, 0, 0, 0.6);
+  --shadow-lift: 0 10px 26px rgba(0, 0, 0, 0.35);
+
+  --mono: var(--font-jbmono), ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto,
+    sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
 
 * {
@@ -108,6 +68,19 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+}
+
+/* Colour alone never carries a state change in this design (chip on/off,
+   status tint) - every focusable element also gets a visible outline so
+   keyboard navigation never depends on hover. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
 }
 
 /* --- Layout ---------------------------------------------------------------- */
@@ -149,7 +122,7 @@ textarea {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -0.02em;
   text-decoration: none;
   margin-right: 16px;
@@ -187,7 +160,7 @@ textarea {
 .nav-link[data-active="true"] {
   background: var(--ember-soft);
   color: var(--ember);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .nav-spacer {
@@ -258,18 +231,18 @@ h3 {
 }
 
 h1 {
-  font-size: 38px;
-  font-weight: 680;
+  font-size: 34px;
+  font-weight: 700;
 }
 
 h2 {
-  font-size: 22px;
-  font-weight: 640;
+  font-size: 21px;
+  font-weight: 600;
 }
 
 h3 {
   font-size: 16px;
-  font-weight: 620;
+  font-weight: 600;
 }
 
 .eyebrow {
@@ -314,6 +287,26 @@ h3 {
   border-radius: var(--radius);
 }
 
+/* For cards that are themselves an affordance (a problem, a feed item, a
+   pairing match) - not applied to inert containers like stat tiles. */
+.card-hover {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Recessed look for input-group panels (profile builder) - visually
+   separates "input" sections from card-style "content" sections elsewhere. */
+.recessed {
+  background: var(--panel-2);
+  border: 1px solid var(--border-recessed);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
 .section {
   margin-top: 40px;
 }
@@ -355,10 +348,11 @@ h3 {
   border: 1px solid var(--border-strong);
   background: var(--panel);
   font-size: 14px;
-  font-weight: 560;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
-  transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
+  transition: background 200ms ease, border-color 200ms ease, filter 200ms ease,
+    transform 80ms ease;
 }
 
 .btn:hover:not(:disabled) {
@@ -366,7 +360,7 @@ h3 {
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
 .btn:disabled {
@@ -377,27 +371,11 @@ h3 {
 .btn-primary {
   background: var(--ember);
   border-color: var(--ember);
-  color: #fff;
-}
-
-:root[data-theme="dark"] .btn-primary,
-.btn-primary {
-  color: #fff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .btn-primary {
-    color: #1a0d05;
-  }
-}
-
-:root[data-theme="dark"] .btn-primary {
-  color: #1a0d05;
+  color: #fff6f2;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ember) 88%, black);
-  border-color: color-mix(in srgb, var(--ember) 88%, black);
+  filter: brightness(1.08);
 }
 
 .btn-lg {
@@ -469,7 +447,7 @@ h3 {
   background: var(--ember-soft);
   border-color: var(--ember);
   color: var(--ember);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .chip-static {
@@ -509,7 +487,7 @@ h3 {
   margin: 0;
   font: inherit;
   color: var(--ember);
-  font-weight: 550;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -568,7 +546,7 @@ h3 {
   padding: 13px 2px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 600;
   list-style: none;
 }
 
@@ -665,7 +643,7 @@ h3 {
 
 .problem-title {
   font-size: 21px;
-  font-weight: 660;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.25;
   margin: 8px 0 0;
@@ -902,8 +880,8 @@ h3 {
 }
 
 .triage-title {
-  font-size: 21px;
-  font-weight: 660;
+  font-size: 27px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.28;
   margin: 0;
@@ -931,7 +909,7 @@ h3 {
   background: var(--panel-2);
   color: var(--cool);
   font-size: 13.5px;
-  font-weight: 550;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -986,8 +964,7 @@ h3 {
 }
 
 .triage-save:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--good) 88%, black);
-  border-color: color-mix(in srgb, var(--good) 88%, black);
+  filter: brightness(1.08);
 }
 
 .triage-done {
