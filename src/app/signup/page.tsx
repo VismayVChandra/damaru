@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { signup } from "@/app/auth/actions";
+import AuthPitch from "@/components/AuthPitch";
+import AuthToggle from "@/components/AuthToggle";
 
 export default async function SignupPage({
   searchParams,
@@ -9,53 +10,50 @@ export default async function SignupPage({
   const { error } = await searchParams;
 
   return (
-    <main className="shell shell-narrow">
-      <div className="eyebrow">Create an account</div>
-      <h1>Join the forge.</h1>
-      <p className="lede" style={{ marginTop: 14 }}>
-        An account is what makes your profile yours — nobody else can edit it or claim your handle.
-      </p>
+    <main className="shell auth-layout">
+      <AuthPitch />
 
-      {error && (
-        <div className="notice" style={{ marginTop: 20 }}>
-          {error}
-        </div>
-      )}
+      <div className="card auth-card">
+        <AuthToggle active="signup" />
 
-      <form action={signup} className="card section stack">
-        <div>
-          <label className="label" htmlFor="email">
-            Email
-          </label>
-          <input id="email" name="email" type="email" className="input" required autoFocus />
-        </div>
-        <div>
-          <label className="label" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            className="input"
-            minLength={8}
-            required
-          />
-          <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
-            At least 8 characters.
-          </p>
-        </div>
-        <button type="submit" className="btn btn-primary btn-lg">
-          Create account
-        </button>
-      </form>
+        {error && (
+          <div className="notice" style={{ marginTop: 18 }}>
+            {error}
+          </div>
+        )}
 
-      <p className="muted" style={{ marginTop: 20, fontSize: 14 }}>
-        Already have one?{" "}
-        <Link href="/login" style={{ color: "var(--ember)" }}>
-          Sign in
-        </Link>
-      </p>
+        <form action={signup} className="stack" style={{ marginTop: 20, gap: 16 }}>
+          <div className="auth-field">
+            <label className="label" htmlFor="email">
+              Email
+            </label>
+            <input id="email" name="email" type="email" className="input" required autoFocus />
+          </div>
+          <div className="auth-field">
+            <label className="label" htmlFor="password">
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              className="input"
+              minLength={8}
+              required
+            />
+            <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>
+              At least 8 characters.
+            </p>
+          </div>
+          <button type="submit" className="btn btn-primary btn-lg auth-submit">
+            Create account
+          </button>
+        </form>
+
+        <p className="faint" style={{ marginTop: 16, fontSize: 13 }}>
+          Pick a handle nobody else has taken — that's the only rule.
+        </p>
+      </div>
     </main>
   );
 }

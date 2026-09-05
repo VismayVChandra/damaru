@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { login } from "@/app/auth/actions";
+import AuthPitch from "@/components/AuthPitch";
+import AuthToggle from "@/components/AuthToggle";
 
 export default async function LoginPage({
   searchParams,
@@ -9,48 +10,48 @@ export default async function LoginPage({
   const { error, notice } = await searchParams;
 
   return (
-    <main className="shell shell-narrow">
-      <div className="eyebrow">Sign in</div>
-      <h1>Welcome back.</h1>
-      <p className="lede" style={{ marginTop: 14 }}>
-        Sign in to see your profile and the problems already issued to you.
-      </p>
+    <main className="shell auth-layout">
+      <AuthPitch />
 
-      {notice && (
-        <div className="notice" style={{ marginTop: 20, borderColor: "var(--cool)", color: "var(--cool)" }}>
-          {notice}
-        </div>
-      )}
-      {error && (
-        <div className="notice" style={{ marginTop: 20 }}>
-          {error}
-        </div>
-      )}
+      <div className="card auth-card">
+        <AuthToggle active="signin" />
 
-      <form action={login} className="card section stack">
-        <div>
-          <label className="label" htmlFor="email">
-            Email
-          </label>
-          <input id="email" name="email" type="email" className="input" required autoFocus />
-        </div>
-        <div>
-          <label className="label" htmlFor="password">
-            Password
-          </label>
-          <input id="password" name="password" type="password" className="input" required />
-        </div>
-        <button type="submit" className="btn btn-primary btn-lg">
-          Sign in
-        </button>
-      </form>
+        {notice && (
+          <div
+            className="notice"
+            style={{ marginTop: 18, borderColor: "var(--cool)", color: "var(--cool)" }}
+          >
+            {notice}
+          </div>
+        )}
+        {error && (
+          <div className="notice" style={{ marginTop: 18 }}>
+            {error}
+          </div>
+        )}
 
-      <p className="muted" style={{ marginTop: 20, fontSize: 14 }}>
-        No account yet?{" "}
-        <Link href="/signup" style={{ color: "var(--ember)" }}>
-          Create one
-        </Link>
-      </p>
+        <form action={login} className="stack" style={{ marginTop: 20, gap: 16 }}>
+          <div className="auth-field">
+            <label className="label" htmlFor="email">
+              Email
+            </label>
+            <input id="email" name="email" type="email" className="input" required autoFocus />
+          </div>
+          <div className="auth-field">
+            <label className="label" htmlFor="password">
+              Password
+            </label>
+            <input id="password" name="password" type="password" className="input" required />
+          </div>
+          <button type="submit" className="btn btn-primary btn-lg auth-submit">
+            Sign in
+          </button>
+        </form>
+
+        <p className="faint" style={{ marginTop: 16, fontSize: 13 }}>
+          Forgot it? Ask in #damaru.
+        </p>
+      </div>
     </main>
   );
 }

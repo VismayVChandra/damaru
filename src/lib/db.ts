@@ -339,6 +339,16 @@ export async function countProblems(): Promise<number> {
   return count ?? 0;
 }
 
+export async function countShippedProblems(): Promise<number> {
+  const { count, error } = await getAdminClient()
+    .from("problems")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "shipped");
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Club feed: recent problems joined to the handle they were issued to. */
 export async function listFeed(limit = 40): Promise<(Problem & { handle: string })[]> {
   const { data, error } = await getAdminClient()
