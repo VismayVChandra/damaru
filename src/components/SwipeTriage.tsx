@@ -47,8 +47,6 @@ export default function SwipeTriage({
   const [queue, setQueue] = useState<Problem[]>(problems);
   const [decided, setDecided] = useState<Decided[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [dragX, setDragX] = useState(0);
-  const [dragging, setDragging] = useState(false);
   const [flinging, setFlinging] = useState(false);
   const [pending, setPending] = useState(false);
   const [rerolling, setRerolling] = useState(false);
@@ -56,6 +54,30 @@ export default function SwipeTriage({
   const [toast, setToast] = useState<Toast | null>(null);
   const startX = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The drag position lives here, not in React state. Driving it through
+  // setState meant a full re-render on every pointermove - dozens of times
+  // a second on a real touch drag - which is exactly what made the gesture
+  // feel laggy/sticky rather than glued to the finger. The card, and the
+  // two stamp elements, are mutated directly instead; React only gets
+  // involved again once the gesture actually ends.
+  const dragXRef = useRef(0);
+  const draggingRef = useRef(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const saveStampRef = useRef<HTMLSpanElement>(null);
+  const passStampRef = useRef<HTMLSpanElement>(null);
+
+  function paintDrag(dx: number, transition: string) {
+    const card = cardRef.current;
+    if (card) {
+      card.style.transition = transition;
+      card.style.transform = `translateX(${dx}px) rotate(${dx * 0.035}deg)`;
+    }
+    const saveOpacity = Math.max(0, Math.min(1, (dx - 24) / (THRESHOLD - 24)));
+    const passOpacity = Math.max(0, Math.min(1, (-dx - 24) / (THRESHOLD - 24)));
+    if (saveStampRef.current) saveStampRef.current.style.opacity = String(saveOpacity);
+    if (passStampRef.current) passStampRef.current.style.opacity = String(passOpacity);
+  }
 
   const top = queue[0];
   const peek = queue[1];
@@ -87,7 +109,6 @@ export default function SwipeTriage({
     setDecided((prev) => [...prev, { problem, decision }]);
     setQueue((prev) => prev.filter((p) => p.id !== problem.id));
     setExpandedId(null);
-    setDragX(0);
     setRerollError(null);
     showToast(problem, decision);
   }
@@ -95,9 +116,12 @@ export default function SwipeTriage({
   /** Flings the active card off-screen, then commits the decision underneath. */
   function commit(problem: Problem, decision: Decision) {
     if (busy) return;
-    setDragging(false);
+    draggingRef.current = false;
     setFlinging(true);
-    setDragX(decision === "saved" ? FLING_DISTANCE : -FLING_DISTANCE);
+    paintDrag(
+      decision === "saved" ? FLING_DISTANCE : -FLING_DISTANCE,
+      "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)",
+    );
     setTimeout(() => {
       setFlinging(false);
       decide(problem, decision);
@@ -138,7 +162,6 @@ export default function SwipeTriage({
       );
       setQueue((prev) => [fresh, ...prev.slice(1)]);
       setExpandedId(null);
-      setDragX(0);
     } catch (e) {
       setRerollError(e instanceof Error ? e.message : "Could not reroll that one.");
     } finally {
@@ -150,26 +173,25 @@ export default function SwipeTriage({
     if (expandedId || busy) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     startX.current = e.clientX;
-    setDragging(true);
+    dragXRef.current = 0;
+    draggingRef.current = true;
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    if (!dragging) return;
-    setDragX(e.clientX - startX.current);
+    if (!draggingRef.current) return;
+    const dx = e.clientX - startX.current;
+    dragXRef.current = dx;
+    paintDrag(dx, "none");
   }
 
   function onPointerUp() {
-    if (!dragging || flinging) return;
-    if (!top) {
-      setDragging(false);
-      return;
-    }
-    if (dragX > THRESHOLD) commit(top, "saved");
-    else if (dragX < -THRESHOLD) commit(top, "passed");
-    else {
-      setDragging(false);
-      setDragX(0);
-    }
+    if (!draggingRef.current || flinging) return;
+    draggingRef.current = false;
+    const dx = dragXRef.current;
+    if (!top) return;
+    if (dx > THRESHOLD) commit(top, "saved");
+    else if (dx < -THRESHOLD) commit(top, "passed");
+    else paintDrag(0, "transform 220ms ease");
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -217,8 +239,6 @@ export default function SwipeTriage({
     );
   }
 
-  const stampOpacity = Math.min(1, Math.abs(dragX) / THRESHOLD);
-
   return (
     <div className="triage">
       <div className="row triage-progress">
@@ -235,33 +255,38 @@ export default function SwipeTriage({
         )}
 
         <div
+          key={top.id}
+          ref={cardRef}
           className="triage-card"
-          style={
-            expandedId === top.id
-              ? undefined
-              : {
-                  transform: `translateX(${dragX}px) rotate(${dragX * 0.035}deg)`,
-                  transition: dragging
-                    ? "none"
-                    : flinging
-                      ? "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)"
-                      : "transform 220ms ease",
-                }
-          }
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          {!expandedId && dragX > 24 && (
-            <span className="triage-stamp triage-stamp-save" style={{ opacity: stampOpacity }}>
-              Save
-            </span>
-          )}
-          {!expandedId && dragX < -24 && (
-            <span className="triage-stamp triage-stamp-pass" style={{ opacity: stampOpacity }}>
-              Pass
-            </span>
+          {!expandedId && (
+            <>
+              {/* Always visible, not just mid-drag - the big stamps below only
+                  confirm a choice already in motion, they can't teach someone
+                  the mapping before their first attempt. */}
+              <div className="triage-hint" aria-hidden="true">
+                <span className="triage-hint-pass">✕ Pass</span>
+                <span className="triage-hint-save">Save ✓</span>
+              </div>
+              <span
+                ref={saveStampRef}
+                className="triage-stamp triage-stamp-save"
+                style={{ opacity: 0 }}
+              >
+                Save
+              </span>
+              <span
+                ref={passStampRef}
+                className="triage-stamp triage-stamp-pass"
+                style={{ opacity: 0 }}
+              >
+                Pass
+              </span>
+            </>
           )}
 
           {expandedId === top.id ? (
@@ -310,7 +335,7 @@ export default function SwipeTriage({
       </button>
       {rerollError && <p className="triage-reroll-error">{rerollError}</p>}
       <p className="faint" style={{ textAlign: "center", fontSize: 12, marginTop: 10 }}>
-        Swipe, tap, or use the arrow keys.
+        Drag right to save, left to pass — or use the buttons above, or the arrow keys.
       </p>
       {toastNode}
     </div>

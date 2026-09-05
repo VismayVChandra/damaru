@@ -972,6 +972,11 @@ h3 {
   cursor: grab;
   user-select: none;
   box-shadow: var(--shadow);
+  /* The drag is driven by direct style mutation every pointermove, not
+     React state - this just tells the browser to composite the transform
+     on its own layer instead of repainting, which is the other half of
+     making the gesture track the finger instead of lagging behind it. */
+  will-change: transform;
 }
 
 .triage-card:active {
@@ -1058,6 +1063,31 @@ h3 {
   right: 20px;
   color: var(--text-faint);
   transform: rotate(14deg);
+}
+
+/* Visible from the first glance, not just once someone is already
+   mid-drag - the big stamps confirm a choice in progress, they can't
+   teach the left/right mapping to someone who hasn't tried it yet. */
+.triage-hint {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+.triage-hint-pass {
+  color: var(--text-faint);
+}
+
+.triage-hint-save {
+  color: var(--good);
 }
 
 .triage-actions {
