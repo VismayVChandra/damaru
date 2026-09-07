@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import type { Checklist, Problem, ProgressEntry } from "@/lib/types";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import { checklistProgress, idleDays, timeAgo } from "@/lib/activity";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 
 const STATUS_FLOW: Problem["status"][] = ["new", "saved", "building", "shipped", "passed"];
@@ -380,7 +381,13 @@ export default function ProblemCard({
                   onClick={logProgress}
                   disabled={logging || !draft.trim()}
                 >
-                  {logging ? "Saving…" : "Log it"}
+                  {logging ? (
+                    <>
+                      <DamaruSpinner size={16} /> Saving…
+                    </>
+                  ) : (
+                    "Log it"
+                  )}
                 </button>
               </div>
             )}
@@ -479,7 +486,13 @@ export default function ProblemCard({
               }}
               disabled={savingNotes}
             >
-              {savingNotes ? "Saving..." : "Save notes"}
+              {savingNotes ? (
+                <>
+                  <DamaruSpinner size={16} /> Saving…
+                </>
+              ) : (
+                "Save notes"
+              )}
             </button>
           </div>
         </div>

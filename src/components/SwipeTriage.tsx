@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import ProblemCard from "@/components/ProblemCard";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { Problem } from "@/lib/types";
 
@@ -331,7 +332,13 @@ export default function SwipeTriage({
         </button>
       </div>
       <button type="button" className="triage-reroll" onClick={() => reroll(top)} disabled={busy}>
-        {rerolling ? "Finding something else…" : "↻ Not this one - try another in this domain"}
+        {rerolling ? (
+          <>
+            <DamaruSpinner size={14} /> Finding something else…
+          </>
+        ) : (
+          "↻ Not this one - try another in this domain"
+        )}
       </button>
       {rerollError && <p className="triage-reroll-error">{rerollError}</p>}
       <p className="faint" style={{ textAlign: "center", fontSize: 12, marginTop: 10 }}>

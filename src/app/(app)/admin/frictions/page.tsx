@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { MECHANIC_BY_ID } from "@/lib/catalog/blocks";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { timeAgo } from "@/lib/activity";
 import type { FrictionRecord } from "@/lib/types";
@@ -91,7 +92,7 @@ export default function ReviewPage() {
 
       {state === "loading" ? (
         <div className="empty">
-          <span className="spin" />
+          <DamaruSpinner size={32} />
         </div>
       ) : frictions.length === 0 ? (
         <div className="empty">Nothing {status}.</div>

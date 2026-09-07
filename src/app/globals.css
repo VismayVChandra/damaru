@@ -1471,19 +1471,55 @@ span.meter {
   background: var(--ember-soft);
 }
 
-.spin {
+/* --- Damaru spinner ---------------------------------------------------
+   Every loading state used to be either the generic border-spinner above
+   or bare text - replaced with the thing the club is actually named
+   after: a damaru, twisted at the wrist so its two beads swing out and
+   strike each head. `transform-box: view-box` makes CSS transform-origin
+   resolve against the SVG's own 0-100 viewBox instead of each part's own
+   bounding box, so every piece can rotate around the drum's waist (50,50)
+   without SMIL. */
+
+.damaru-spinner {
   display: inline-block;
-  width: 13px;
-  height: 13px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+.damaru-spinner .damaru-part {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+}
+
+.damaru-spinner .damaru-body {
+  animation: damaru-twist 0.7s ease-in-out infinite;
+}
+
+.damaru-spinner .damaru-bead-left {
+  animation: damaru-swing-left 0.7s ease-in-out infinite;
+}
+
+.damaru-spinner .damaru-bead-right {
+  animation: damaru-swing-right 0.7s ease-in-out infinite;
+}
+
+@keyframes damaru-twist {
+  0%, 100% { transform: rotate(-9deg); }
+  50% { transform: rotate(9deg); }
+}
+
+@keyframes damaru-swing-left {
+  0%, 100% { transform: rotate(-32deg); }
+  50% { transform: rotate(20deg); }
+}
+
+@keyframes damaru-swing-right {
+  0%, 100% { transform: rotate(32deg); }
+  50% { transform: rotate(-20deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .damaru-spinner .damaru-part {
+    animation: none;
   }
 }
 

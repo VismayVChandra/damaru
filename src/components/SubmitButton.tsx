@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import DamaruSpinner from "@/components/DamaruSpinner";
 
 /**
  * Neither auth form gave any feedback while its server action was in
@@ -24,7 +25,13 @@ export default function SubmitButton({
   const { pending } = useFormStatus();
   return (
     <button type="submit" className={className} disabled={pending}>
-      {pending ? pendingText : children}
+      {pending ? (
+        <>
+          <DamaruSpinner size={16} /> {pendingText}
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }

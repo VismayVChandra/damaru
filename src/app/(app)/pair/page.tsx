@@ -6,6 +6,7 @@ import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 
 const CATEGORY_COUNT = Object.keys(CATEGORY_LABELS).length;
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { PairCandidate, RecurringGap } from "@/lib/pairing";
 
@@ -54,7 +55,7 @@ export default function PairPage() {
     return (
       <main className="shell">
         <div className="empty">
-          <span className="spin" />
+          <DamaruSpinner size={32} />
         </div>
       </main>
     );
@@ -172,7 +173,15 @@ export default function PairPage() {
             onClick={() => setDiscoverable(!discoverable)}
             disabled={saving}
           >
-            {saving ? "Saving…" : discoverable ? "Hide me" : "List me"}
+            {saving ? (
+              <>
+                <DamaruSpinner size={16} /> Saving…
+              </>
+            ) : discoverable ? (
+              "Hide me"
+            ) : (
+              "List me"
+            )}
           </button>
         </div>
       </section>

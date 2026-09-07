@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DOMAINS } from "@/lib/catalog/domains";
 import { MECHANICS } from "@/lib/catalog/blocks";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { FrictionRecord } from "@/lib/types";
 
@@ -185,7 +186,13 @@ export default function SubmitPage() {
 
       <div className="row section" style={{ gap: 12 }}>
         <button className="btn btn-primary btn-lg" onClick={submit} disabled={!ready || saving}>
-          {saving ? "Submitting…" : "Submit friction"}
+          {saving ? (
+            <>
+              <DamaruSpinner size={16} /> Submitting…
+            </>
+          ) : (
+            "Submit friction"
+          )}
         </button>
         {!ready && (
           <span style={{ fontSize: 13, color: "var(--ember)" }}>

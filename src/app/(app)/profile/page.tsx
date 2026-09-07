@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, SKILLS } from "@/lib/catalog/skills";
 import { DOMAINS } from "@/lib/catalog/domains";
 import { ARTIFACTS } from "@/lib/catalog/blocks";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { Appetite, Profile, SkillCategory, TeamSize, TimeBudget, UserSkill } from "@/lib/types";
 
@@ -172,7 +173,7 @@ export default function ProfilePage() {
     return (
       <main className="shell shell-narrow">
         <div className="empty">
-          <span className="spin" /> Loading your profile…
+          <DamaruSpinner size={24} /> Loading your profile…
         </div>
       </main>
     );
@@ -515,7 +516,7 @@ export default function ProfilePage() {
           >
             {status === "saving" ? (
               <>
-                <span className="spin" /> Saving…
+                <DamaruSpinner size={16} /> Saving…
               </>
             ) : (
               "Save and generate"

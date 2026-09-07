@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import SwipeTriage from "@/components/SwipeTriage";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import type { Problem, Profile } from "@/lib/types";
@@ -64,7 +65,7 @@ export default function GeneratePage() {
     return (
       <main className="shell">
         <div className="empty">
-          <span className="spin" />
+          <DamaruSpinner size={32} />
         </div>
       </main>
     );
@@ -124,7 +125,7 @@ export default function GeneratePage() {
             <button className="btn btn-primary" onClick={generate} disabled={loading}>
               {loading ? (
                 <>
-                  <span className="spin" /> {WAITING_LINES[line]}
+                  <DamaruSpinner size={16} /> {WAITING_LINES[line]}
                 </>
               ) : problems.length > 0 ? (
                 "Generate more"

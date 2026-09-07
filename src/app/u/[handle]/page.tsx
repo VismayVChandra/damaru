@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { SKILL_BY_ID } from "@/lib/catalog/skills";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { Problem, UserSkill } from "@/lib/types";
 
@@ -70,7 +71,7 @@ export default function PublicProfilePage() {
     return (
       <main className="shell shell-narrow">
         <div className="empty">
-          <span className="spin" />
+          <DamaruSpinner size={32} />
         </div>
       </main>
     );

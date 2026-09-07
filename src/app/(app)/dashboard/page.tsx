@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ProblemCard from "@/components/ProblemCard";
+import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { checklistProgress, idleDays } from "@/lib/activity";
 import { recurringGap } from "@/lib/pairing";
@@ -61,7 +62,7 @@ export default function DashboardPage() {
     return (
       <main className="shell">
         <div className="empty">
-          <span className="spin" />
+          <DamaruSpinner size={32} />
         </div>
       </main>
     );
