@@ -118,6 +118,9 @@ export interface Mechanic {
   difficulty: 1 | 2 | 3;
   requirement: string;
   teaches: string;
+  /** The smallest concrete slice of the crux to attempt first - feeds the
+   * optional, hidden-by-default "starting angle" hint, never the brief itself. */
+  firstMove: string;
 }
 
 /** The shape of the thing they ship. */
@@ -131,6 +134,9 @@ export interface Artifact {
   /** Rough build weight, 1 = light, 3 = heavy. */
   weight: 1 | 2 | 3;
   deliverable: string;
+  /** The first concrete thing to get working in this shipping format - same
+   * "starting angle" hint as Mechanic.firstMove, from the format's side. */
+  firstStep: string;
 }
 
 /** A constraint that forces the problem somewhere non-obvious. */
@@ -214,6 +220,9 @@ export interface Problem {
   requirements: string[];
   stretchGoals: string[];
   skillStretch: string;
+  /** Optional, hidden-by-default hint for someone stuck on where to begin -
+   * a starting angle, never the solution itself. */
+  startingAngle: string;
   signals: string[];
   successCriteria: string[];
   dna: ProblemDNA;

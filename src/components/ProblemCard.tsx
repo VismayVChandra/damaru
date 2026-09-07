@@ -344,6 +344,19 @@ export default function ProblemCard({
           </ul>
         </details>
 
+        {/* Closed by default and deliberately not called "hints" - this is a
+            starting angle for someone stuck on where to begin, not a peek at
+            the solution. Opening it is a choice, not something skimmed
+            alongside the brief. */}
+        <details className="block">
+          <summary style={{ cursor: "pointer", color: "var(--text-muted)", fontSize: 14 }}>
+            Stuck? See a starting angle
+          </summary>
+          <p className="muted" style={{ marginTop: 12, fontSize: 14.5 }}>
+            {problem.startingAngle}
+          </p>
+        </details>
+
         {(interactive || progress.length > 0) && (
           <div className="block log">
             <div className="block-label">

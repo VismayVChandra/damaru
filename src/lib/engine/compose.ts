@@ -231,6 +231,13 @@ export function compose(
       ? `Unfamiliar ground: ${joinList(growing)}. The crux itself teaches ${mechanic.teaches}; the constraint forces ${twist.teaches}.`
       : `Not new territory, but new depth. The crux teaches ${mechanic.teaches}; the constraint forces ${twist.teaches}.`;
 
+  // --- Starting angle --------------------------------------------------------
+  // Hidden behind a reveal in the UI, never shown alongside the brief by
+  // default - this is "where to begin," not the solution. Combines the
+  // shipping format's first move with the crux's, so it stays specific to
+  // both what's being built and what's actually hard about it.
+  const startingAngle = `${artifact.firstStep} ${mechanic.firstMove}`;
+
   return {
     fingerprint: fp,
     profileId: profile.id,
@@ -241,6 +248,7 @@ export function compose(
     requirements,
     stretchGoals,
     skillStretch,
+    startingAngle,
     signals: [dna.signal, ...domain.signals.filter((s) => s !== dna.signal).slice(0, 2)],
     successCriteria,
     dna,

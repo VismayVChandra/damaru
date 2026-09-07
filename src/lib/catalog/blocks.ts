@@ -13,6 +13,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Match and rank records that disagree on spelling, format and casing, and explain why each match scored the way it did.",
     teaches: "string distance metrics and why exact-match thinking fails on real data",
+    firstMove: "Take twenty real records, match them by hand, and write down the rule you actually followed - that rule is your first matching function.",
   },
   {
     id: "structuring",
@@ -22,6 +23,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Ingest the messiest real version of the source and emit a clean, validated schema, flagging rows it could not parse rather than silently dropping them.",
     teaches: "defensive parsing and the discipline of never discarding data you failed to understand",
+    firstMove: "Take the ugliest ten real records you can find and get those parsing cleanly before you touch the rest.",
   },
   {
     id: "timeseries",
@@ -31,6 +33,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Detect trends, streaks and outliers over time and state plainly how confident the answer is given how little data exists.",
     teaches: "rolling windows, baselines, and honest uncertainty on small samples",
+    firstMove: "Plot the raw numbers with no analysis at all first. Half of what you're looking for is visible before you compute anything.",
   },
   {
     id: "scheduling",
@@ -40,6 +43,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Produce a valid assignment under hard constraints, and when none exists, report the smallest set of constraints that would have to give.",
     teaches: "constraint modelling and how to fail informatively instead of just failing",
+    firstMove: "Solve one real, small case by hand on paper. However you did it is your first constraint.",
   },
   {
     id: "realtime",
@@ -49,6 +53,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Keep several people's views consistent as they act at the same time, and resolve conflicting edits without losing anyone's work.",
     teaches: "optimistic updates, conflict resolution and the cost of shared state",
+    firstMove: "Get two browser tabs seeing the same change with a full page refresh in between before you touch anything live.",
   },
   {
     id: "search",
@@ -58,6 +63,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Return the right result for a vague, misspelled or partial query, and rank results in an order the user would defend.",
     teaches: "indexing, relevance scoring and evaluating search quality rather than guessing at it",
+    firstMove: "Write down the five queries a real person would actually type, typos included, before you build any ranking.",
   },
   {
     id: "classify",
@@ -67,6 +73,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Label incoming items automatically, report per-class accuracy honestly, and route low-confidence cases to a human instead of guessing.",
     teaches: "baselines, class imbalance and why accuracy alone is a misleading number",
+    firstMove: "Sort twenty real examples into piles by hand first. Your piles are your first categories.",
   },
   {
     id: "recommend",
@@ -76,6 +83,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Recommend well for a brand-new user with almost no history, and be able to explain any single recommendation in one sentence.",
     teaches: "the cold-start problem and why explainability beats a marginally better score",
+    firstMove: "Get one honest recommendation working for the person with the least history - that's the case that actually breaks things.",
   },
   {
     id: "vision",
@@ -85,6 +93,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Extract reliable information from photographs taken in bad light by people who are not photographers, and refuse confidently when the image is unusable.",
     teaches: "preprocessing, robustness to real-world input and knowing when to abstain",
+    firstMove: "Collect ten real, ugly photos - not clean test images - before writing a line of the pipeline.",
   },
   {
     id: "nlp-extract",
@@ -94,6 +103,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Extract the specific facts that matter from long unstructured documents, and cite the exact span each fact came from.",
     teaches: "information extraction and building trust through traceability",
+    firstMove: "Highlight the exact sentence a fact came from in five real documents, by hand, before extracting anything automatically.",
   },
   {
     id: "geo",
@@ -103,6 +113,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Work with real coordinates and networks, and handle the cases where the map is wrong or the data is missing for exactly the area that matters.",
     teaches: "spatial joins, projections and the politics of what maps leave out",
+    firstMove: "Plot the raw coordinates on a bare map with nothing else before you add any logic.",
   },
   {
     id: "offline-sync",
@@ -112,6 +123,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Stay fully usable with no connection for days, then reconcile cleanly when the connection returns, with no silent data loss.",
     teaches: "local-first architecture and the surprisingly hard problem of merge",
+    firstMove: "Turn off your wifi and see what actually breaks before you design around it.",
   },
   {
     id: "pipeline",
@@ -121,6 +133,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Run unattended on a schedule, recover from partial failures, and make it obvious from the outside when it has silently stopped working.",
     teaches: "idempotency, retries and observability for things nobody is watching",
+    firstMove: "Run the very first version by hand, once, and write down every step - that's your job list to automate.",
   },
   {
     id: "perf",
@@ -130,6 +143,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Hold a hard latency budget on a realistically large input, and prove it with a benchmark rather than a feeling.",
     teaches: "profiling, algorithmic complexity and measuring before optimising",
+    firstMove: "Measure how slow it currently is, in real numbers, before changing a single line.",
   },
   {
     id: "parser",
@@ -139,6 +153,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Correctly read the ugly real-world format including its undocumented variations, with a test suite built from genuinely broken examples.",
     teaches: "grammar design, tokenising and the value of a hostile test corpus",
+    firstMove: "Find the three ugliest real examples of the format and get just those three parsing before anything else.",
   },
   {
     id: "viz",
@@ -148,6 +163,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Present the finding so that a busy, sceptical person understands it in under thirty seconds without a legend lecture.",
     teaches: "encoding choices, visual hierarchy and designing for a hostile reader",
+    firstMove: "Sketch the one number that matters on paper before opening a charting library.",
   },
   {
     id: "workflow",
@@ -157,6 +173,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Model how the work is actually done, including the exceptions and the informal handoffs, rather than how a tidy diagram says it should be.",
     teaches: "state machines, edge cases and designing around people rather than against them",
+    firstMove: "Shadow how the work actually happens once, start to finish, before designing anything.",
   },
   {
     id: "capture",
@@ -166,6 +183,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Make recording an observation take under five seconds with cold hands and one thumb, because anything slower simply will not happen.",
     teaches: "interaction cost and why the best data model loses to the fastest input",
+    firstMove: "Time how long the current way of recording it takes. That number is the one to beat.",
   },
   {
     id: "sensor",
@@ -175,6 +193,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Take a noisy physical measurement, calibrate it, and produce a number somebody would be willing to act on.",
     teaches: "signal noise, calibration drift and the gap between a reading and a fact",
+    firstMove: "Take one raw reading and write down every reason it might be wrong before trusting it.",
   },
   {
     id: "simulate",
@@ -184,6 +203,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Let someone change an assumption and immediately see the consequence, with the model's assumptions visible rather than buried.",
     teaches: "modelling, sensitivity analysis and communicating what a simulation cannot tell you",
+    firstMove: "Build the version with one input and one output wired together before adding any other variable.",
   },
   {
     id: "privacy",
@@ -193,6 +213,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Handle genuinely sensitive information such that a breach of any single component still does not expose it.",
     teaches: "threat modelling, minimisation and designing for the failure you did not plan",
+    firstMove: "Write down exactly what data you touch and where it goes before writing any code that touches it.",
   },
   {
     id: "gameloop",
@@ -202,6 +223,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Build a core loop that is still worth doing on the twentieth attempt, and instrument it so you can see where people stop.",
     teaches: "pacing, feedback loops and playtesting as a measurement discipline",
+    firstMove: "Build the single action a player repeats and make just that one thing feel good before adding anything else.",
   },
 
   // --- Non-software engineering ----------------------------------------
@@ -219,6 +241,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Size the part against a real, stated load case with a safety factor you can justify, not a number that merely looks strong enough.",
     teaches: "stress analysis and the difference between looking strong and being sized",
+    firstMove: "Do the load calculation by hand on paper before opening any CAD or simulation tool.",
   },
   {
     id: "circuit-design",
@@ -228,6 +251,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Design and build a circuit that still works once it leaves the ideal conditions of a datasheet - real tolerances, real noise, real temperature.",
     teaches: "circuit analysis and the gap between a schematic and the physical build",
+    firstMove: "Breadboard the smallest version of the circuit and measure it with a multimeter before designing an enclosure.",
   },
   {
     id: "site-systems",
@@ -237,6 +261,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Base the design on the real conditions of the specific site - its soil, its water, its loads - not a generic textbook assumption.",
     teaches: "site-specific load paths and designing for the worst realistic case, not the average one",
+    firstMove: "Go look at the actual site, or its real photos and survey data, before assuming anything from a textbook case.",
   },
   {
     id: "process-design",
@@ -246,6 +271,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Show the mass and energy balance for the process at the scale it would actually run, and name the failure mode that only appears once you leave the lab bench.",
     teaches: "why lab-scale success does not guarantee plant-scale success",
+    firstMove: "Do the mass and energy balance on paper for the smallest realistic batch before touching simulation software.",
   },
   {
     id: "flight-dynamics",
@@ -255,6 +281,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Show the stability margin under a real disturbance, not just steady, ideal conditions.",
     teaches: "aerodynamics, stability margins and the cost of being wrong in the air",
+    firstMove: "Hand-calculate the stability at one single condition before running any simulation.",
   },
   {
     id: "biomech-design",
@@ -264,6 +291,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 3,
     requirement: "Design around real human variation - not one idealised body - and be explicit about who it was and wasn't tested with.",
     teaches: "biocompatibility, human variability and designing around a regulator's questions",
+    firstMove: "Measure or observe one real body doing the real motion before assuming a standard one.",
   },
   {
     id: "environmental-system",
@@ -273,6 +301,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Measure against a real, named limit or standard, not a vague sense of 'better than before.'",
     teaches: "environmental constraints, monitoring and designing for compliance over time, not a single test",
+    firstMove: "Find the actual limit or standard you're designing against, in writing, before doing any calculation.",
   },
   {
     id: "manufacturability",
@@ -282,6 +311,7 @@ export const MECHANICS: Mechanic[] = [
     difficulty: 2,
     requirement: "Design for the tenth unit, not just the first - state the tolerances and the process, and show what breaks if either drifts.",
     teaches: "process capability and designing for the person who builds the tenth one, not just the first",
+    firstMove: "Try to build one by hand with basic tools before assuming any process is available.",
   },
 ];
 
@@ -295,6 +325,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["backend", "design"],
     weight: 2,
     deliverable: "a deployed web app anyone can open with a link, with no install step",
+    firstStep: "Get one real screen live behind a real URL before you build a second one.",
   },
   {
     id: "cli",
@@ -304,6 +335,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["backend"],
     weight: 1,
     deliverable: "a single-command tool with a real --help, sensible defaults and a README someone could follow cold",
+    firstStep: "Get --help and the single most common command working before anything else.",
   },
   {
     id: "mobile",
@@ -313,6 +345,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["design", "backend"],
     weight: 3,
     deliverable: "an installable app that works one-handed on a cheap phone",
+    firstStep: "Get it installed and running on one real phone before touching a second screen.",
   },
   {
     id: "bot",
@@ -322,6 +355,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["ops"],
     weight: 1,
     deliverable: "a bot in the chat tool the group already uses, requiring no new app from anyone",
+    firstStep: "Get it responding correctly to one real message in the actual chat tool before adding a second command.",
   },
   {
     id: "dashboard",
@@ -331,6 +365,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["design"],
     weight: 2,
     deliverable: "a single screen that answers the question without anyone needing to be trained on it",
+    firstStep: "Get one real number rendering correctly on the screen before adding a second chart.",
   },
   {
     id: "pipeline",
@@ -340,6 +375,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["ops", "backend"],
     weight: 2,
     deliverable: "a scheduled job that produces a clean, documented dataset plus a status page proving it ran",
+    firstStep: "Run the whole thing once, by hand, start to finish, before automating any of it.",
   },
   {
     id: "library",
@@ -349,6 +385,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["systems"],
     weight: 2,
     deliverable: "a published package with tests, documentation and a worked example someone can copy",
+    firstStep: "Write the one function you'd actually reach for first, with a test, before designing the rest of the API.",
   },
   {
     id: "model",
@@ -358,6 +395,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["backend", "frontend"],
     weight: 3,
     deliverable: "a model with an honest evaluation writeup and an interface a non-expert can actually try",
+    firstStep: "Get the simplest possible baseline working end to end before improving its accuracy at all.",
   },
   {
     id: "device",
@@ -367,6 +405,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["systems"],
     weight: 3,
     deliverable: "a working physical build with a wiring diagram and a parts list under a stated budget",
+    firstStep: "Get one LED or one output responding to one input before wiring up anything else.",
   },
   {
     id: "game",
@@ -376,6 +415,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["design"],
     weight: 2,
     deliverable: "a playable build that a stranger can finish without you sitting next to them",
+    firstStep: "Get the single core action feeling right with placeholder art before building a second mechanic.",
   },
   {
     id: "extension",
@@ -385,6 +425,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["design"],
     weight: 1,
     deliverable: "an installable extension that improves a site the person already uses every day",
+    firstStep: "Get it injecting one visible change into one real page before adding a second feature.",
   },
   {
     id: "study",
@@ -394,6 +435,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["design"],
     weight: 1,
     deliverable: "a public writeup with reproducible analysis, the raw data, and a finding somebody would argue with",
+    firstStep: "Collect the smallest real sample that could possibly answer the question before writing any analysis code.",
   },
   {
     id: "prototype",
@@ -406,6 +448,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["industrial"],
     weight: 3,
     deliverable: "a working physical prototype with CAD files or drawings, a bill of materials, and evidence it meets a stated spec",
+    firstStep: "Build the roughest possible version in cardboard, foam or scrap material before touching real material or CAD.",
   },
   {
     id: "analysis",
@@ -415,6 +458,7 @@ export const ARTIFACTS: Artifact[] = [
     nice: ["data"],
     weight: 2,
     deliverable: "a calculation- or simulation-backed report with its assumptions stated up front, checked against a hand-calculation or a real measurement",
+    firstStep: "Do a rough hand-calculation or back-of-envelope estimate before opening any simulation software.",
   },
 ];
 
