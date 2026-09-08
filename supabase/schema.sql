@@ -47,6 +47,8 @@ create table problems (
   domain_id   text not null,
   fit         real not null,
   difficulty  int not null,
+  -- Whether this problem is flagged as open for someone else to join.
+  looking_for_collaborators boolean not null default false,
   created_at  timestamptz not null default now(),
 
   constraint status_valid check (status in ('new', 'saved', 'building', 'shipped', 'passed'))
@@ -118,6 +120,31 @@ create table follows (
 
 create index idx_follows_following on follows(following_id);
 
+-- Collaboration requests: the two mechanics from the "social media" wave -
+-- (1) flag a problem you're building as open to collaborators, discoverable
+-- by anyone; (2) a general request to work with someone, found by browsing
+-- the club for a skill category rather than a specific problem. Both share
+-- one table - a request is either tied to a problem or it isn't.
+create table collab_requests (
+  id              uuid primary key default gen_random_uuid(),
+  problem_id      uuid references problems(id) on delete cascade,
+  from_profile_id uuid not null references profiles(id) on delete cascade,
+  to_profile_id   uuid not null references profiles(id) on delete cascade,
+  message         text not null default '',
+  status          text not null default 'pending',
+  created_at      timestamptz not null default now(),
+  responded_at    timestamptz,
+
+  constraint collab_status_valid check (status in ('pending', 'accepted', 'declined')),
+  constraint collab_message_len check (char_length(message) <= 300),
+  constraint collab_no_self check (from_profile_id <> to_profile_id)
+);
+
+create index idx_collab_to on collab_requests(to_profile_id, status);
+create index idx_collab_from on collab_requests(from_profile_id);
+create index idx_collab_problem on collab_requests(problem_id);
+create index idx_problems_looking on problems(looking_for_collaborators) where looking_for_collaborators;
+
 -- Row Level Security. The app server talks to Postgres with the service-role
 -- key and bypasses RLS entirely (it is the trusted gatekeeper - every API
 -- route re-checks the session itself, mirroring how the SQLite version
@@ -129,6 +156,7 @@ alter table problems enable row level security;
 alter table progress_entries enable row level security;
 alter table frictions enable row level security;
 alter table follows enable row level security;
+alter table collab_requests enable row level security;
 
 create policy "profiles are privately owned"
   on profiles for all
@@ -199,6 +227,21 @@ create policy "people manage their own follows"
   on follows for all
   using (auth.uid() = follower_id)
   with check (auth.uid() = follower_id);
+
+-- Only the two people involved ever see a request - unlike follows or
+-- feedback, this isn't meant to be public.
+create policy "collab requests are readable by sender or recipient"
+  on collab_requests for select
+  using (auth.uid() = from_profile_id or auth.uid() = to_profile_id);
+
+create policy "people send their own collab requests"
+  on collab_requests for insert
+  with check (auth.uid() = from_profile_id);
+
+create policy "recipients respond to their own collab requests"
+  on collab_requests for update
+  using (auth.uid() = to_profile_id)
+  with check (auth.uid() = to_profile_id);
 
 -- A fresh project should now run supabase/migrations/002b_seed_frictions.sql
 -- to load the 144 starting frictions into the table above.

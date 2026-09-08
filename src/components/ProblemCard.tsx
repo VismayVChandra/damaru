@@ -83,6 +83,9 @@ export default function ProblemCard({
   interactive?: boolean;
 }) {
   const [status, setStatus] = useState<Problem["status"]>(problem.status);
+  const [lookingForCollaborators, setLookingForCollaboratorsState] = useState(
+    problem.lookingForCollaborators,
+  );
   const [feedback, setFeedbackState] = useState<Problem["feedback"]>(problem.feedback ?? null);
   const [checklist, setChecklist] = useState<Checklist>(problem.checklist ?? {});
   // Ticking two boxes quickly would otherwise build both updates from the same
@@ -125,6 +128,20 @@ export default function ProblemCard({
       });
     } catch {
       setStatus(previous);
+    }
+  }
+
+  async function toggleCollaborators() {
+    const next = !lookingForCollaborators;
+    const previous = lookingForCollaborators;
+    setLookingForCollaboratorsState(next);
+    try {
+      await api(`/api/problems/${problem.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ lookingForCollaborators: next }),
+      });
+    } catch {
+      setLookingForCollaboratorsState(previous);
     }
   }
 
@@ -209,6 +226,15 @@ export default function ProblemCard({
             {problem.domainIcon} {problem.domainLabel}
           </span>
           <span className="row" style={{ gap: 8 }}>
+            {lookingForCollaborators && (
+              <span
+                className="chip chip-static"
+                style={{ color: "var(--good)", borderColor: "var(--good)" }}
+                title="Flagged as open for someone else to join"
+              >
+                open to collaborators
+              </span>
+            )}
             {idle !== null && (
               <span className="chip chip-static is-idle" title="No progress logged recently">
                 {idle}d without movement
@@ -444,6 +470,16 @@ export default function ProblemCard({
           </span>
         )}
         <span className="nav-spacer" />
+        {interactive && (status === "saved" || status === "building") && (
+          <button
+            type="button"
+            className={lookingForCollaborators ? "btn btn-sm btn-primary" : "btn btn-sm"}
+            onClick={toggleCollaborators}
+            title="Let other members request to join this one"
+          >
+            {lookingForCollaborators ? "Open to collaborators" : "Open to collaborators?"}
+          </button>
+        )}
         {interactive && (
           <>
             {STATUS_FLOW.filter((s) => s !== status).map((s) => (

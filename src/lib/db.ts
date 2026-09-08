@@ -2,6 +2,8 @@ import "server-only";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type {
   Checklist,
+  CollabRequest,
+  CollabRequestStatus,
   FrictionRecord,
   Problem,
   ProblemPayload,
@@ -198,6 +200,7 @@ interface ProblemRow {
   notes: string;
   checklist: Checklist | null;
   feedback: Problem["feedback"];
+  looking_for_collaborators: boolean | null;
   friction_id: string | null;
   created_at: string;
   /** Present only on queries that embed the relation. */
@@ -224,6 +227,7 @@ function rowToProblem(row: ProblemRow): Problem {
     // Rows written before the checklist column existed come back null.
     checklist: row.checklist ?? {},
     feedback: row.feedback ?? null,
+    lookingForCollaborators: row.looking_for_collaborators ?? false,
     ...(row.progress_entries
       ? {
           progress: [...row.progress_entries]
@@ -257,6 +261,7 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
     payload,
     status,
     notes,
+    lookingForCollaborators,
     domainId,
     frictionId,
     fit,
@@ -273,6 +278,7 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
       payload,
       status,
       notes,
+      looking_for_collaborators: lookingForCollaborators,
       domain_id: domainId,
       friction_id: frictionId,
       fit,
@@ -299,6 +305,7 @@ function packProblem(problem: Problem) {
     notes,
     checklist,
     feedback,
+    lookingForCollaborators,
     progress,
     createdAt,
     dna,
@@ -311,6 +318,7 @@ function packProblem(problem: Problem) {
     profileId,
     status,
     notes,
+    lookingForCollaborators,
     createdAt,
     domainId: dna.domainId,
     frictionId: dna.frictionId,
@@ -357,6 +365,7 @@ export async function updateProblem(
     notes?: string;
     checklist?: Checklist;
     feedback?: Problem["feedback"];
+    lookingForCollaborators?: boolean;
   },
 ): Promise<Problem | null> {
   const existing = await getProblem(id);
@@ -369,6 +378,7 @@ export async function updateProblem(
       notes: patch.notes ?? existing.notes,
       checklist: patch.checklist ?? existing.checklist,
       feedback: "feedback" in patch ? patch.feedback : existing.feedback,
+      looking_for_collaborators: patch.lookingForCollaborators ?? existing.lookingForCollaborators,
     })
     .eq("id", id);
 
@@ -619,4 +629,173 @@ export async function countBuildingByProfile(): Promise<Map<string, number>> {
     counts.set(id, (counts.get(id) ?? 0) + 1);
   }
   return counts;
+}
+
+// --- Collaboration ---------------------------------------------------------
+
+/**
+ * Problems flagged open to collaborators, newest first, with the owner's
+ * handle. Restricted to saved/building - a "new" problem hasn't even been
+ * kept yet, and a shipped/passed one is done.
+ */
+export async function listOpenForCollaboration(): Promise<(Problem & { handle: string })[]> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("*, profiles(handle)")
+    .eq("looking_for_collaborators", true)
+    .in("status", ["saved", "building"])
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
+    return { ...rowToProblem(row as ProblemRow), handle: profiles?.handle ?? "unknown" };
+  });
+}
+
+interface CollabRequestRow {
+  id: string;
+  problem_id: string | null;
+  from_profile_id: string;
+  to_profile_id: string;
+  message: string;
+  status: CollabRequestStatus;
+  created_at: string;
+  responded_at: string | null;
+}
+
+/**
+ * Fills in the handles (and, for problem-tied requests, the problem's
+ * title/domain) that the row itself doesn't carry. Done as a couple of
+ * batched follow-up queries rather than a PostgREST embed, since
+ * `collab_requests` has two foreign keys into `profiles` - disambiguating
+ * that in an embedded select needs exact constraint-name hints, and this is
+ * club-scale data where a plain `.in(...)` is simpler and just as fast.
+ */
+async function hydrateCollabRequests(rows: CollabRequestRow[]): Promise<CollabRequest[]> {
+  if (rows.length === 0) return [];
+
+  const profileIds = [...new Set(rows.flatMap((r) => [r.from_profile_id, r.to_profile_id]))];
+  const problemIds = [...new Set(rows.map((r) => r.problem_id).filter((id): id is string => id !== null))];
+
+  const [profilesRes, problemsRes] = await Promise.all([
+    getAdminClient().from("profiles").select("id, handle").in("id", profileIds),
+    problemIds.length > 0
+      ? getAdminClient().from("problems").select("id, payload").in("id", problemIds)
+      : Promise.resolve({ data: [] as { id: string; payload: ProblemPayload }[], error: null }),
+  ]);
+  if (profilesRes.error) throw profilesRes.error;
+  if (problemsRes.error) throw problemsRes.error;
+
+  const handleById = new Map((profilesRes.data ?? []).map((p) => [p.id as string, p.handle as string]));
+  const problemById = new Map(
+    (problemsRes.data ?? []).map((p) => [p.id as string, p.payload as ProblemPayload]),
+  );
+
+  return rows.map((row) => {
+    const problem = row.problem_id ? problemById.get(row.problem_id) : undefined;
+    return {
+      id: row.id,
+      problemId: row.problem_id,
+      fromProfileId: row.from_profile_id,
+      fromHandle: handleById.get(row.from_profile_id) ?? "unknown",
+      toProfileId: row.to_profile_id,
+      toHandle: handleById.get(row.to_profile_id) ?? "unknown",
+      message: row.message,
+      status: row.status,
+      createdAt: row.created_at,
+      respondedAt: row.responded_at,
+      problemTitle: problem?.title,
+      problemDomainIcon: problem?.domainIcon,
+      problemDomainLabel: problem?.domainLabel,
+    };
+  });
+}
+
+export interface CollabRequestInput {
+  /** Null for a general request not tied to any problem. */
+  problemId?: string | null;
+  fromProfileId: string;
+  toProfileId: string;
+  message: string;
+}
+
+export async function createCollabRequest(input: CollabRequestInput): Promise<CollabRequest> {
+  const { data, error } = await getAdminClient()
+    .from("collab_requests")
+    .insert({
+      problem_id: input.problemId ?? null,
+      from_profile_id: input.fromProfileId,
+      to_profile_id: input.toProfileId,
+      message: input.message,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  const [hydrated] = await hydrateCollabRequests([data as CollabRequestRow]);
+  return hydrated;
+}
+
+/** So the route can refuse a duplicate before it ever reaches the database. */
+export async function hasPendingCollabRequest(
+  fromProfileId: string,
+  toProfileId: string,
+  problemId: string | null,
+): Promise<boolean> {
+  let query = getAdminClient()
+    .from("collab_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("from_profile_id", fromProfileId)
+    .eq("to_profile_id", toProfileId)
+    .eq("status", "pending");
+  query = problemId ? query.eq("problem_id", problemId) : query.is("problem_id", null);
+
+  const { count, error } = await query;
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+export async function getCollabRequest(id: string): Promise<CollabRequest | null> {
+  const { data, error } = await getAdminClient()
+    .from("collab_requests")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  const [hydrated] = await hydrateCollabRequests([data as CollabRequestRow]);
+  return hydrated;
+}
+
+export async function respondToCollabRequest(
+  id: string,
+  status: "accepted" | "declined",
+): Promise<CollabRequest | null> {
+  const { error } = await getAdminClient()
+    .from("collab_requests")
+    .update({ status, responded_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw error;
+  return getCollabRequest(id);
+}
+
+/** Everything involving this person, newest first, split by direction. */
+export async function listCollabRequestsFor(
+  profileId: string,
+): Promise<{ incoming: CollabRequest[]; outgoing: CollabRequest[] }> {
+  const { data, error } = await getAdminClient()
+    .from("collab_requests")
+    .select("*")
+    .or(`from_profile_id.eq.${profileId},to_profile_id.eq.${profileId}`)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  const hydrated = await hydrateCollabRequests((data ?? []) as CollabRequestRow[]);
+  return {
+    incoming: hydrated.filter((r) => r.toProfileId === profileId),
+    outgoing: hydrated.filter((r) => r.fromProfileId === profileId),
+  };
 }

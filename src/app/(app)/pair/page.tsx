@@ -9,6 +9,7 @@ import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { PairCandidate, RecurringGap } from "@/lib/pairing";
+import type { SkillCategory } from "@/lib/types";
 
 interface PairData {
   candidates: PairCandidate[];
@@ -17,10 +18,18 @@ interface PairData {
   pool: number;
 }
 
+interface DirectoryMember {
+  handle: string;
+  displayName: string;
+  strongIn: SkillCategory[];
+}
+
 export default function PairPage() {
   const [data, setData] = useState<PairData | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "no-profile">("loading");
   const [saving, setSaving] = useState(false);
+  const [directory, setDirectory] = useState<DirectoryMember[]>([]);
+  const [browseCategory, setBrowseCategory] = useState<SkillCategory | null>(null);
 
   useEffect(() => {
     api<PairData>("/api/pair")
@@ -29,7 +38,17 @@ export default function PairPage() {
         setState("ready");
       })
       .catch(() => setState("no-profile"));
+    api<{ members: DirectoryMember[] }>("/api/directory")
+      .then(({ members }) => setDirectory(members))
+      .catch(() => setDirectory([]));
   }, []);
+
+  const categoriesPresent = [
+    ...new Set(directory.flatMap((m) => m.strongIn)),
+  ].sort((a, b) => CATEGORY_LABELS[a].localeCompare(CATEGORY_LABELS[b]));
+  const shownMembers = browseCategory
+    ? directory.filter((m) => m.strongIn.includes(browseCategory))
+    : [];
 
   async function setDiscoverable(next: boolean) {
     if (!data) return;
@@ -158,6 +177,41 @@ export default function PairPage() {
         </>
       )}
 
+      <section className="section">
+        <h2>Browse by expertise</h2>
+        <p className="faint" style={{ fontSize: 13.5, marginTop: 4 }}>
+          Not tied to your own gaps - pick a category and see who in the club is strong in it.
+        </p>
+        {categoriesPresent.length === 0 ? (
+          <p className="faint" style={{ fontSize: 13.5, marginTop: 12 }}>
+            Nobody discoverable has a strong skill logged yet.
+          </p>
+        ) : (
+          <>
+            <div className="chip-wrap" style={{ marginTop: 14 }}>
+              {categoriesPresent.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="chip"
+                  data-on={browseCategory === c ? "true" : "false"}
+                  onClick={() => setBrowseCategory(browseCategory === c ? null : c)}
+                >
+                  {CATEGORY_LABELS[c]}
+                </button>
+              ))}
+            </div>
+            {browseCategory && (
+              <div className="grid-2" style={{ marginTop: 16 }}>
+                {shownMembers.map((m) => (
+                  <DirectoryCard key={m.handle} member={m} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
       <section className="card section">
         <div className="row" style={{ justifyContent: "space-between", gap: 16 }}>
           <div style={{ flex: 1, minWidth: 240 }}>
@@ -273,6 +327,84 @@ function PairCard({ candidate }: { candidate: PairCandidate }) {
               })}
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DirectoryCard({ member }: { member: DirectoryMember }) {
+  const [state, setState] = useState<"idle" | "composing" | "sending" | "sent">("idle");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function send() {
+    setState("sending");
+    setError(null);
+    try {
+      await api(`/api/profiles/${member.handle}/collab-requests`, {
+        method: "POST",
+        body: JSON.stringify({ message: message.trim() }),
+      });
+      setState("sent");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that.");
+      setState("composing");
+    }
+  }
+
+  return (
+    <div className="card">
+      <Link
+        href={`/u/${member.handle}`}
+        className="mono"
+        style={{ fontSize: 14, fontWeight: 600, color: "inherit" }}
+      >
+        @{member.handle}
+      </Link>
+      <div className="chip-wrap" style={{ marginTop: 10 }}>
+        {member.strongIn.map((c) => (
+          <span key={c} className="chip chip-static">
+            {CATEGORY_LABELS[c]}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        {state === "sent" ? (
+          <span className="faint" style={{ fontSize: 13 }}>
+            Request sent — waiting to hear back.
+          </span>
+        ) : state === "composing" || state === "sending" ? (
+          <div>
+            <textarea
+              className="textarea"
+              value={message}
+              maxLength={300}
+              placeholder="What are you working on, or hoping to?"
+              onChange={(e) => setMessage(e.target.value)}
+              style={{ minHeight: 60 }}
+            />
+            <div className="row" style={{ marginTop: 8, gap: 8 }}>
+              <button className="btn btn-sm btn-primary" onClick={send} disabled={state === "sending"}>
+                {state === "sending" ? (
+                  <>
+                    <DamaruSpinner size={14} /> Sending…
+                  </>
+                ) : (
+                  "Send request"
+                )}
+              </button>
+              <button className="btn btn-sm" onClick={() => setState("idle")} disabled={state === "sending"}>
+                Cancel
+              </button>
+            </div>
+            {error && <p style={{ color: "var(--ember)", fontSize: 13, marginTop: 6 }}>{error}</p>}
+          </div>
+        ) : (
+          <button className="btn btn-sm btn-primary" onClick={() => setState("composing")}>
+            Request to collaborate
+          </button>
         )}
       </div>
     </div>

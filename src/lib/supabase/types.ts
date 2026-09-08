@@ -1,4 +1,11 @@
-import type { Checklist, FrictionRecord, Problem, ProblemPayload, Profile } from "@/lib/types";
+import type {
+  Checklist,
+  CollabRequest,
+  FrictionRecord,
+  Problem,
+  ProblemPayload,
+  Profile,
+} from "@/lib/types";
 
 /**
  * Hand-written to match supabase/schema.sql, in the same shape the Supabase
@@ -82,6 +89,7 @@ export interface Database {
           notes: string;
           checklist: Checklist;
           feedback: Problem["feedback"];
+          looking_for_collaborators: boolean;
           domain_id: string;
           friction_id: string | null;
           fit: number;
@@ -97,6 +105,7 @@ export interface Database {
           notes: string;
           checklist?: Checklist;
           feedback?: Problem["feedback"];
+          looking_for_collaborators?: boolean;
           domain_id: string;
           friction_id?: string | null;
           fit: number;
@@ -108,6 +117,7 @@ export interface Database {
           notes?: string;
           checklist?: Checklist;
           feedback?: Problem["feedback"];
+          looking_for_collaborators?: boolean;
         };
         Relationships: [
           {
@@ -154,6 +164,52 @@ export interface Database {
           {
             foreignKeyName: "frictions_submitted_by_fkey";
             columns: ["submitted_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      collab_requests: {
+        Row: {
+          id: string;
+          problem_id: string | null;
+          from_profile_id: string;
+          to_profile_id: string;
+          message: string;
+          status: CollabRequest["status"];
+          created_at: string;
+          responded_at: string | null;
+        };
+        Insert: {
+          problem_id?: string | null;
+          from_profile_id: string;
+          to_profile_id: string;
+          message?: string;
+          status?: CollabRequest["status"];
+        };
+        Update: {
+          status?: CollabRequest["status"];
+          responded_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "collab_requests_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "collab_requests_from_profile_id_fkey";
+            columns: ["from_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "collab_requests_to_profile_id_fkey";
+            columns: ["to_profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];

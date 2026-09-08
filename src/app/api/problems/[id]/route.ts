@@ -42,12 +42,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     notes?: string;
     checklist?: Checklist;
     feedback?: Problem["feedback"];
+    lookingForCollaborators?: boolean;
   } = {};
   if (typeof body.status === "string" && STATUSES.includes(body.status as Problem["status"])) {
     patch.status = body.status as Problem["status"];
   }
   if (typeof body.notes === "string") {
     patch.notes = body.notes.slice(0, 4000);
+  }
+  if (typeof body.lookingForCollaborators === "boolean") {
+    patch.lookingForCollaborators = body.lookingForCollaborators;
   }
   if ("feedback" in body) {
     // Explicit null clears it (clicking an already-active thumb again), so

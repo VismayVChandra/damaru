@@ -36,6 +36,9 @@ export default function PublicProfilePage() {
   const [state, setState] = useState<"loading" | "ready" | "not-found">("loading");
   const [following, setFollowing] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [collabState, setCollabState] = useState<"idle" | "composing" | "sending" | "sent">("idle");
+  const [collabMessage, setCollabMessage] = useState("");
+  const [collabError, setCollabError] = useState<string | null>(null);
 
   useEffect(() => {
     setState("loading");
@@ -64,6 +67,21 @@ export default function PublicProfilePage() {
       setFollowing(!next);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendCollabRequest() {
+    setCollabState("sending");
+    setCollabError(null);
+    try {
+      await api(`/api/profiles/${handle}/collab-requests`, {
+        method: "POST",
+        body: JSON.stringify({ message: collabMessage.trim() }),
+      });
+      setCollabState("sent");
+    } catch (e) {
+      setCollabError(e instanceof Error ? e.message : "Could not send that.");
+      setCollabState("composing");
     }
   }
 
@@ -121,16 +139,70 @@ export default function PublicProfilePage() {
             Sign in to follow
           </Link>
         ) : (
-          <button
-            type="button"
-            className={following ? "btn btn-sm" : "btn btn-sm btn-primary"}
-            onClick={toggleFollow}
-            disabled={busy}
-          >
-            {following ? "Following" : "Follow"}
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              type="button"
+              className={following ? "btn btn-sm" : "btn btn-sm btn-primary"}
+              onClick={toggleFollow}
+              disabled={busy}
+            >
+              {following ? "Following" : "Follow"}
+            </button>
+            {collabState === "idle" && (
+              <button type="button" className="btn btn-sm" onClick={() => setCollabState("composing")}>
+                Request to collaborate
+              </button>
+            )}
+            {collabState === "sent" && (
+              <span className="faint" style={{ fontSize: 13 }}>
+                Request sent
+              </span>
+            )}
+          </div>
         )}
       </div>
+
+      {(collabState === "composing" || collabState === "sending") && (
+        <div className="card section" style={{ maxWidth: 460 }}>
+          <label className="label" htmlFor="collab-message">
+            Request to collaborate
+          </label>
+          <textarea
+            id="collab-message"
+            className="textarea"
+            value={collabMessage}
+            maxLength={300}
+            placeholder="What are you working on, or hoping to?"
+            onChange={(e) => setCollabMessage(e.target.value)}
+            style={{ minHeight: 60 }}
+          />
+          <div className="row" style={{ marginTop: 10, gap: 8 }}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={sendCollabRequest}
+              disabled={collabState === "sending"}
+            >
+              {collabState === "sending" ? (
+                <>
+                  <DamaruSpinner size={14} /> Sending…
+                </>
+              ) : (
+                "Send request"
+              )}
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => setCollabState("idle")}
+              disabled={collabState === "sending"}
+            >
+              Cancel
+            </button>
+          </div>
+          {collabError && (
+            <p style={{ color: "var(--ember)", fontSize: 13, marginTop: 8 }}>{collabError}</p>
+          )}
+        </div>
+      )}
 
       <div className="row section" style={{ gap: 28 }}>
         <div>

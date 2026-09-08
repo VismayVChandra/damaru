@@ -189,6 +189,7 @@ export type ProblemPayload = Omit<
   | "notes"
   | "checklist"
   | "feedback"
+  | "lookingForCollaborators"
   | "progress"
   | "createdAt"
 >;
@@ -199,6 +200,31 @@ export interface ProgressEntry {
   problemId: string;
   body: string;
   createdAt: string;
+}
+
+export type CollabRequestStatus = "pending" | "accepted" | "declined";
+
+/**
+ * A request to work together - either on a specific problem (`problemId`
+ * set, found by browsing what's flagged open) or a general one found by
+ * browsing the club for a skill category (`problemId` null). Only the two
+ * people involved ever see one.
+ */
+export interface CollabRequest {
+  id: string;
+  problemId: string | null;
+  fromProfileId: string;
+  fromHandle: string;
+  toProfileId: string;
+  toHandle: string;
+  message: string;
+  status: CollabRequestStatus;
+  createdAt: string;
+  respondedAt: string | null;
+  /** Present only when problemId is set. */
+  problemTitle?: string;
+  problemDomainIcon?: string;
+  problemDomainLabel?: string;
 }
 
 /**
@@ -235,6 +261,8 @@ export interface Problem {
   notes: string;
   /** Was this friction, for this person, actually a good problem? Their call alone. */
   feedback: "up" | "down" | null;
+  /** Flagged by the owner as open for someone else to join. */
+  lookingForCollaborators: boolean;
   checklist: Checklist;
   /** Loaded alongside the problem where the view needs it; newest first. */
   progress?: ProgressEntry[];

@@ -8,7 +8,14 @@ import { fingerprint, pick, seededRandom } from "./novelty";
 
 export type GeneratedProblem = Omit<
   Problem,
-  "id" | "status" | "notes" | "checklist" | "feedback" | "progress" | "createdAt"
+  | "id"
+  | "status"
+  | "notes"
+  | "checklist"
+  | "feedback"
+  | "lookingForCollaborators"
+  | "progress"
+  | "createdAt"
 >;
 
 /**
