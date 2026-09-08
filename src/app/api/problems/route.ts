@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getProfileById, listProblemsForProfile } from "@/lib/db";
+import { attachEngagement, getProfileById, listProblemsForProfile } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,5 +17,6 @@ export async function GET() {
   const profile = await getProfileById(user.id);
   if (!profile) return NextResponse.json({ problems: [], profile: null });
 
-  return NextResponse.json({ problems: await listProblemsForProfile(profile.id), profile });
+  const problems = await attachEngagement(await listProblemsForProfile(profile.id), user.id);
+  return NextResponse.json({ problems, profile });
 }

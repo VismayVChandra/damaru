@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { followProfile, getProfileByHandle, unfollowProfile } from "@/lib/db";
+import { createNotification, followProfile, getProfileByHandle, isFollowing, unfollowProfile } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,13 @@ export async function POST(_request: Request, ctx: { params: Promise<{ handle: s
     return NextResponse.json({ error: "You can't follow yourself." }, { status: 400 });
   }
 
+  // followProfile is an idempotent upsert - only notify the first time, so
+  // re-clicking (or a retried request) doesn't spam duplicate notifications.
+  const alreadyFollowing = await isFollowing(user.id, target.id);
   await followProfile(user.id, target.id);
+  if (!alreadyFollowing) {
+    await createNotification({ profileId: target.id, type: "follow", actorProfileId: user.id });
+  }
   return NextResponse.json({ following: true });
 }
 

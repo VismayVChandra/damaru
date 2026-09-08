@@ -1,11 +1,14 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type {
+  AppNotification,
   Checklist,
   CollabRequest,
   CollabRequestStatus,
   FrictionRecord,
+  NotificationType,
   Problem,
+  ProblemComment,
   ProblemPayload,
   ProgressEntry,
   Profile,
@@ -423,7 +426,42 @@ export async function countShippedProblems(): Promise<number> {
 export async function listFeed(limit = 40): Promise<(Problem & { handle: string })[]> {
   const { data, error } = await getAdminClient()
     .from("problems")
-    .select("*, profiles(handle), progress_entries(*)")
+    // Explicit constraint name: problem_likes and problem_comments both also
+    // link problems to profiles now, so PostgREST can no longer infer which
+    // relationship "profiles(handle)" means on its own.
+    .select("*, profiles!problems_profile_id_fkey(handle), progress_entries(*)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
+    return { ...rowToProblem(row as ProblemRow), handle: profiles?.handle ?? "unknown" };
+  });
+}
+
+/**
+ * The home feed: recent problems from people the viewer follows, newest
+ * first - the actual "why open the app today" screen. Restricted to
+ * saved/building/shipped for the same reason `listOpenForCollaboration` is:
+ * a "new" draw hasn't been kept yet, so it isn't really an update about
+ * someone's work.
+ */
+export async function listFollowingFeed(viewerId: string, limit = 40): Promise<(Problem & { handle: string })[]> {
+  const { data: followRows, error: followErr } = await getAdminClient()
+    .from("follows")
+    .select("following_id")
+    .eq("follower_id", viewerId);
+  if (followErr) throw followErr;
+
+  const followingIds = (followRows ?? []).map((r) => (r as { following_id: string }).following_id);
+  if (followingIds.length === 0) return [];
+
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("*, profiles!problems_profile_id_fkey(handle)")
+    .in("profile_id", followingIds)
+    .in("status", ["saved", "building", "shipped"])
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -641,7 +679,7 @@ export async function countBuildingByProfile(): Promise<Map<string, number>> {
 export async function listOpenForCollaboration(): Promise<(Problem & { handle: string })[]> {
   const { data, error } = await getAdminClient()
     .from("problems")
-    .select("*, profiles(handle)")
+    .select("*, profiles!problems_profile_id_fkey(handle)")
     .eq("looking_for_collaborators", true)
     .in("status", ["saved", "building"])
     .order("created_at", { ascending: false });
@@ -798,4 +836,230 @@ export async function listCollabRequestsFor(
     incoming: hydrated.filter((r) => r.toProfileId === profileId),
     outgoing: hydrated.filter((r) => r.fromProfileId === profileId),
   };
+}
+
+// --- Engagement: likes + comments -------------------------------------------
+
+/** Toggles the viewer's like on a problem. Returns the new state. */
+export async function toggleLike(problemId: string, profileId: string): Promise<boolean> {
+  const { data: existing, error: selErr } = await getAdminClient()
+    .from("problem_likes")
+    .select("profile_id")
+    .eq("problem_id", problemId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  if (selErr) throw selErr;
+
+  if (existing) {
+    const { error } = await getAdminClient()
+      .from("problem_likes")
+      .delete()
+      .eq("problem_id", problemId)
+      .eq("profile_id", profileId);
+    if (error) throw error;
+    return false;
+  }
+
+  const { error } = await getAdminClient()
+    .from("problem_likes")
+    .insert({ problem_id: problemId, profile_id: profileId });
+  if (error) throw error;
+  return true;
+}
+
+export async function countLikes(problemId: string): Promise<number> {
+  const { count, error } = await getAdminClient()
+    .from("problem_likes")
+    .select("*", { count: "exact", head: true })
+    .eq("problem_id", problemId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+interface CommentRow {
+  id: string;
+  problem_id: string;
+  profile_id: string;
+  body: string;
+  created_at: string;
+  profiles?: { handle: string } | null;
+}
+
+function rowToComment(row: CommentRow): ProblemComment {
+  return {
+    id: row.id,
+    problemId: row.problem_id,
+    profileId: row.profile_id,
+    handle: row.profiles?.handle ?? "unknown",
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+export async function listComments(problemId: string): Promise<ProblemComment[]> {
+  const { data, error } = await getAdminClient()
+    .from("problem_comments")
+    .select("*, profiles(handle)")
+    .eq("problem_id", problemId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToComment(r as CommentRow));
+}
+
+export async function addComment(problemId: string, profileId: string, body: string): Promise<ProblemComment> {
+  const { data, error } = await getAdminClient()
+    .from("problem_comments")
+    .insert({ problem_id: problemId, profile_id: profileId, body })
+    .select("*, profiles(handle)")
+    .single();
+  if (error) throw error;
+  return rowToComment(data as CommentRow);
+}
+
+interface EngagementInfo {
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
+}
+
+/**
+ * Batched like/comment counts for a set of problems, aggregated in Node -
+ * club-scale data, same reasoning as everywhere else in this file that skips
+ * a GROUP BY RPC for a couple of `.in()` queries.
+ */
+async function getEngagementFor(problemIds: string[], viewerId: string | null): Promise<Map<string, EngagementInfo>> {
+  const map = new Map<string, EngagementInfo>();
+  for (const id of problemIds) map.set(id, { likeCount: 0, commentCount: 0, likedByMe: false });
+  if (problemIds.length === 0) return map;
+
+  const [likesRes, commentsRes] = await Promise.all([
+    getAdminClient().from("problem_likes").select("problem_id, profile_id").in("problem_id", problemIds),
+    getAdminClient().from("problem_comments").select("problem_id").in("problem_id", problemIds),
+  ]);
+  if (likesRes.error) throw likesRes.error;
+  if (commentsRes.error) throw commentsRes.error;
+
+  for (const row of likesRes.data ?? []) {
+    const r = row as { problem_id: string; profile_id: string };
+    const entry = map.get(r.problem_id);
+    if (!entry) continue;
+    entry.likeCount++;
+    if (viewerId && r.profile_id === viewerId) entry.likedByMe = true;
+  }
+  for (const row of commentsRes.data ?? []) {
+    const r = row as { problem_id: string };
+    const entry = map.get(r.problem_id);
+    if (entry) entry.commentCount++;
+  }
+  return map;
+}
+
+/** Joins like/comment counts (and whether the viewer liked it) onto a list of problems. */
+export async function attachEngagement<T extends Problem>(problems: T[], viewerId: string | null): Promise<T[]> {
+  const map = await getEngagementFor(problems.map((p) => p.id), viewerId);
+  return problems.map((p) => ({ ...p, ...(map.get(p.id) ?? { likeCount: 0, commentCount: 0, likedByMe: false }) }));
+}
+
+// --- Notifications -----------------------------------------------------------
+
+interface NotificationRow {
+  id: string;
+  profile_id: string;
+  type: NotificationType;
+  actor_profile_id: string | null;
+  problem_id: string | null;
+  collab_request_id: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+/**
+ * Fills in the actor's handle and, where relevant, the problem's title - a
+ * couple of batched `.in()` lookups rather than a PostgREST embed, since
+ * `notifications` has two foreign keys into `profiles` (recipient and actor)
+ * the same way `collab_requests` does. See `hydrateCollabRequests` above.
+ */
+async function hydrateNotifications(rows: NotificationRow[]): Promise<AppNotification[]> {
+  if (rows.length === 0) return [];
+
+  const actorIds = [...new Set(rows.map((r) => r.actor_profile_id).filter((id): id is string => id !== null))];
+  const problemIds = [...new Set(rows.map((r) => r.problem_id).filter((id): id is string => id !== null))];
+
+  const [actorsRes, problemsRes] = await Promise.all([
+    actorIds.length > 0
+      ? getAdminClient().from("profiles").select("id, handle").in("id", actorIds)
+      : Promise.resolve({ data: [] as { id: string; handle: string }[], error: null }),
+    problemIds.length > 0
+      ? getAdminClient().from("problems").select("id, payload").in("id", problemIds)
+      : Promise.resolve({ data: [] as { id: string; payload: ProblemPayload }[], error: null }),
+  ]);
+  if (actorsRes.error) throw actorsRes.error;
+  if (problemsRes.error) throw problemsRes.error;
+
+  const handleById = new Map((actorsRes.data ?? []).map((p) => [p.id as string, p.handle as string]));
+  const problemById = new Map((problemsRes.data ?? []).map((p) => [p.id as string, p.payload as ProblemPayload]));
+
+  return rows.map((row) => ({
+    id: row.id,
+    type: row.type,
+    actorHandle: row.actor_profile_id ? handleById.get(row.actor_profile_id) ?? "unknown" : null,
+    problemId: row.problem_id,
+    problemTitle: row.problem_id ? problemById.get(row.problem_id)?.title : undefined,
+    read: row.read,
+    createdAt: row.created_at,
+  }));
+}
+
+export interface CreateNotificationInput {
+  /** Who should see this. */
+  profileId: string;
+  type: NotificationType;
+  /** Who caused it - omitted for a hypothetical system notification. */
+  actorProfileId?: string | null;
+  problemId?: string | null;
+  collabRequestId?: string | null;
+}
+
+/** A no-op when the actor and the recipient are the same person - nobody needs to be told about their own action. */
+export async function createNotification(input: CreateNotificationInput): Promise<void> {
+  if (input.actorProfileId && input.actorProfileId === input.profileId) return;
+
+  const { error } = await getAdminClient().from("notifications").insert({
+    profile_id: input.profileId,
+    type: input.type,
+    actor_profile_id: input.actorProfileId ?? null,
+    problem_id: input.problemId ?? null,
+    collab_request_id: input.collabRequestId ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function listNotifications(profileId: string, limit = 30): Promise<AppNotification[]> {
+  const { data, error } = await getAdminClient()
+    .from("notifications")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return hydrateNotifications((data ?? []) as NotificationRow[]);
+}
+
+export async function countUnreadNotifications(profileId: string): Promise<number> {
+  const { count, error } = await getAdminClient()
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("profile_id", profileId)
+    .eq("read", false);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function markNotificationsRead(profileId: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("notifications")
+    .update({ read: true })
+    .eq("profile_id", profileId)
+    .eq("read", false);
+  if (error) throw error;
 }

@@ -192,6 +192,9 @@ export type ProblemPayload = Omit<
   | "lookingForCollaborators"
   | "progress"
   | "createdAt"
+  | "likeCount"
+  | "commentCount"
+  | "likedByMe"
 >;
 
 /** One line of "what moved", appended to a problem over time. */
@@ -266,5 +269,37 @@ export interface Problem {
   checklist: Checklist;
   /** Loaded alongside the problem where the view needs it; newest first. */
   progress?: ProgressEntry[];
+  createdAt: string;
+  /** Social engagement - only populated where a listing joins it in (the
+   * home feed, explore, a profile grid). Never part of the stored payload. */
+  likeCount?: number;
+  commentCount?: number;
+  likedByMe?: boolean;
+}
+
+export interface ProblemComment {
+  id: string;
+  problemId: string;
+  profileId: string;
+  handle: string;
+  body: string;
+  createdAt: string;
+}
+
+export type NotificationType = "follow" | "like" | "comment" | "collab_request" | "collab_accepted";
+
+/**
+ * One piece of activity aimed at the signed-in person - the thing that
+ * actually pulls someone back into the app instead of relying on them to
+ * stumble across new activity on their own.
+ */
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  /** Who did it - absent only for a hypothetical system notification. */
+  actorHandle: string | null;
+  problemId: string | null;
+  problemTitle?: string;
+  read: boolean;
   createdAt: string;
 }

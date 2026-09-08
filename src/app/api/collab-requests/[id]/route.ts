@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getCollabRequest, respondToCollabRequest } from "@/lib/db";
+import { createNotification, getCollabRequest, respondToCollabRequest } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,5 +31,14 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   const updated = await respondToCollabRequest(id, body.status);
+  if (body.status === "accepted" && updated) {
+    await createNotification({
+      profileId: existing.fromProfileId,
+      type: "collab_accepted",
+      actorProfileId: user.id,
+      problemId: existing.problemId,
+      collabRequestId: existing.id,
+    });
+  }
   return NextResponse.json({ request: updated });
 }

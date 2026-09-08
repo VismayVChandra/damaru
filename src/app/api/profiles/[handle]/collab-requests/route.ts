@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { createCollabRequest, getProfileByHandle, hasPendingCollabRequest } from "@/lib/db";
+import { createCollabRequest, createNotification, getProfileByHandle, hasPendingCollabRequest } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +34,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ handle: st
     fromProfileId: user.id,
     toProfileId: target.id,
     message,
+  });
+  await createNotification({
+    profileId: target.id,
+    type: "collab_request",
+    actorProfileId: user.id,
+    collabRequestId: created.id,
   });
   return NextResponse.json({ request: created });
 }

@@ -2,6 +2,7 @@ import type {
   Checklist,
   CollabRequest,
   FrictionRecord,
+  NotificationType,
   Problem,
   ProblemPayload,
   Profile,
@@ -212,6 +213,120 @@ export interface Database {
             columns: ["to_profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      problem_likes: {
+        Row: {
+          problem_id: string;
+          profile_id: string;
+          created_at: string;
+        };
+        Insert: {
+          problem_id: string;
+          profile_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["problem_likes"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "problem_likes_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "problem_likes_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      problem_comments: {
+        Row: {
+          id: string;
+          problem_id: string;
+          profile_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          problem_id: string;
+          profile_id: string;
+          body: string;
+        };
+        Update: {
+          body?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "problem_comments_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "problem_comments_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          profile_id: string;
+          type: NotificationType;
+          actor_profile_id: string | null;
+          problem_id: string | null;
+          collab_request_id: string | null;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          profile_id: string;
+          type: NotificationType;
+          actor_profile_id?: string | null;
+          problem_id?: string | null;
+          collab_request_id?: string | null;
+          read?: boolean;
+        };
+        Update: {
+          read?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_actor_profile_id_fkey";
+            columns: ["actor_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_collab_request_id_fkey";
+            columns: ["collab_request_id"];
+            isOneToOne: false;
+            referencedRelation: "collab_requests";
             referencedColumns: ["id"];
           },
         ];

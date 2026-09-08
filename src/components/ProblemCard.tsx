@@ -6,6 +6,7 @@ import type { Checklist, Problem, ProgressEntry } from "@/lib/types";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import { checklistProgress, idleDays, timeAgo } from "@/lib/activity";
 import DamaruSpinner from "@/components/DamaruSpinner";
+import Engagement from "@/components/Engagement";
 import { api } from "@/lib/client";
 
 const STATUS_FLOW: Problem["status"][] = ["new", "saved", "building", "shipped", "passed"];
@@ -78,9 +79,12 @@ function Difficulty({ level }: { level: number }) {
 export default function ProblemCard({
   problem,
   interactive = false,
+  canEngage = true,
 }: {
   problem: Problem;
   interactive?: boolean;
+  /** Whether the viewer is signed in and can like/comment. Counts still show either way. */
+  canEngage?: boolean;
 }) {
   const [status, setStatus] = useState<Problem["status"]>(problem.status);
   const [lookingForCollaborators, setLookingForCollaboratorsState] = useState(
@@ -493,6 +497,16 @@ export default function ProblemCard({
           </>
         )}
       </footer>
+
+      <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
+        <Engagement
+          problemId={problem.id}
+          initialLikeCount={problem.likeCount ?? 0}
+          initialCommentCount={problem.commentCount ?? 0}
+          initialLiked={problem.likedByMe ?? false}
+          canInteract={canEngage}
+        />
+      </div>
 
       {interactive && showNotes && (
         <div style={{ padding: "16px 22px", borderTop: "1px solid var(--border)" }}>

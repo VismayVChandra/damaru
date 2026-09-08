@@ -276,6 +276,20 @@ export default function PublicProfilePage() {
                   </span>
                 </div>
                 <p style={{ marginTop: 10, fontSize: 15, fontWeight: 600 }}>{p.title}</p>
+                {((p.likeCount ?? 0) > 0 || (p.commentCount ?? 0) > 0) && (
+                  <div className="row" style={{ marginTop: 8, gap: 12 }}>
+                    {(p.likeCount ?? 0) > 0 && (
+                      <span className="faint mono" style={{ fontSize: 11.5 }}>
+                        ♥ {p.likeCount}
+                      </span>
+                    )}
+                    {(p.commentCount ?? 0) > 0 && (
+                      <span className="faint mono" style={{ fontSize: 11.5 }}>
+                        💬 {p.commentCount}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

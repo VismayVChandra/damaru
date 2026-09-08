@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { listFeed } from "@/lib/db";
+import Engagement from "@/components/Engagement";
+import { attachEngagement, listFeed } from "@/lib/db";
 import { checklistProgress, idleDays, timeAgo } from "@/lib/activity";
+import { getCurrentUser } from "@/lib/supabase/server";
 import type { Problem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -15,13 +17,14 @@ const STATUS_LABEL: Record<Problem["status"], string> = {
   passed: "Passed",
 };
 
-function Row({ item }: { item: FeedItem }) {
+function Row({ item, canEngage }: { item: FeedItem; canEngage: boolean }) {
   const done = checklistProgress(item);
   const idle = idleDays(item);
   const latest = item.progress?.[0];
 
   return (
-    <details className="card feed-row">
+    <div className="card feed-row">
+      <details>
       <summary style={{ cursor: "pointer", listStyle: "none" }}>
         <div className="row" style={{ justifyContent: "space-between", gap: 12 }}>
           <span className="chip chip-static">
@@ -109,7 +112,18 @@ function Row({ item }: { item: FeedItem }) {
         )}
         <span className="fingerprint">#{item.fingerprint}</span>
       </div>
-    </details>
+      </details>
+
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+        <Engagement
+          problemId={item.id}
+          initialLikeCount={item.likeCount ?? 0}
+          initialCommentCount={item.commentCount ?? 0}
+          initialLiked={item.likedByMe ?? false}
+          canInteract={canEngage}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -117,11 +131,13 @@ function Section({
   title,
   blurb,
   items,
+  canEngage,
   rail = false,
 }: {
   title: string;
   blurb: string;
   items: FeedItem[];
+  canEngage: boolean;
   /** The one section that's actually "the feed" per the handoff spec - a
    * timeline rail down the left edge. The other two sections here are this
    * app's own addition (shipped-only would hide too much real state), so
@@ -146,7 +162,7 @@ function Section({
         style={{ gap: 14, marginTop: 18 }}
       >
         {items.map((p) => (
-          <Row key={p.id} item={p} />
+          <Row key={p.id} item={p} canEngage={canEngage} />
         ))}
       </div>
     </section>
@@ -154,7 +170,8 @@ function Section({
 }
 
 export default async function BrowsePage() {
-  const feed = await listFeed(60);
+  const viewer = await getCurrentUser();
+  const feed = await attachEngagement(await listFeed(60), viewer?.id ?? null);
 
   // Shipped work leads. A feed ordered by issue date rewards collecting
   // problems; this one rewards finishing them.
@@ -216,17 +233,20 @@ export default async function BrowsePage() {
             title="Shipped"
             blurb="Finished, in someone's hands, done. This is the part worth copying."
             items={shipped}
+            canEngage={Boolean(viewer)}
             rail
           />
           <Section
             title="In progress"
             blurb="Actively being built. The progress log is the evidence."
             items={moving}
+            canEngage={Boolean(viewer)}
           />
           <Section
             title="Issued"
             blurb="Handed out, not started yet. Idle time is shown so it stays honest."
             items={rest}
+            canEngage={Boolean(viewer)}
           />
         </>
       )}

@@ -145,6 +145,50 @@ create index idx_collab_from on collab_requests(from_profile_id);
 create index idx_collab_problem on collab_requests(problem_id);
 create index idx_problems_looking on problems(looking_for_collaborators) where looking_for_collaborators;
 
+-- Likes + comments treat a problem like a post - the engagement loop that
+-- makes the feed worth returning to, not just a directory.
+create table problem_likes (
+  problem_id uuid not null references problems(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+
+  primary key (problem_id, profile_id)
+);
+
+create index idx_likes_problem on problem_likes(problem_id);
+create index idx_likes_profile on problem_likes(profile_id);
+
+create table problem_comments (
+  id         uuid primary key default gen_random_uuid(),
+  problem_id uuid not null references problems(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  body       text not null,
+  created_at timestamptz not null default now(),
+
+  constraint comment_len check (char_length(btrim(body)) between 1 and 500)
+);
+
+create index idx_comments_problem on problem_comments(problem_id, created_at);
+
+-- One row per bit of activity aimed at a specific person - a follow, a like,
+-- a comment, a collab request or its acceptance. One table rather than one
+-- per type, since every kind is "read or not, newest first" the same way.
+create table notifications (
+  id                 uuid primary key default gen_random_uuid(),
+  profile_id         uuid not null references profiles(id) on delete cascade,
+  type               text not null,
+  actor_profile_id   uuid references profiles(id) on delete cascade,
+  problem_id         uuid references problems(id) on delete cascade,
+  collab_request_id  uuid references collab_requests(id) on delete cascade,
+  read               boolean not null default false,
+  created_at         timestamptz not null default now(),
+
+  constraint notif_type_valid check (type in ('follow', 'like', 'comment', 'collab_request', 'collab_accepted'))
+);
+
+create index idx_notif_profile on notifications(profile_id, created_at desc);
+create index idx_notif_unread on notifications(profile_id) where not read;
+
 -- Row Level Security. The app server talks to Postgres with the service-role
 -- key and bypasses RLS entirely (it is the trusted gatekeeper - every API
 -- route re-checks the session itself, mirroring how the SQLite version
@@ -157,6 +201,9 @@ alter table progress_entries enable row level security;
 alter table frictions enable row level security;
 alter table follows enable row level security;
 alter table collab_requests enable row level security;
+alter table problem_likes enable row level security;
+alter table problem_comments enable row level security;
+alter table notifications enable row level security;
 
 create policy "profiles are privately owned"
   on profiles for all
@@ -242,6 +289,38 @@ create policy "recipients respond to their own collab requests"
   on collab_requests for update
   using (auth.uid() = to_profile_id)
   with check (auth.uid() = to_profile_id);
+
+create policy "likes are publicly readable"
+  on problem_likes for select
+  using (true);
+
+create policy "people manage their own likes"
+  on problem_likes for all
+  using (auth.uid() = profile_id)
+  with check (auth.uid() = profile_id);
+
+create policy "comments are publicly readable"
+  on problem_comments for select
+  using (true);
+
+create policy "people write their own comments"
+  on problem_comments for insert
+  with check (auth.uid() = profile_id);
+
+create policy "people delete their own comments"
+  on problem_comments for delete
+  using (auth.uid() = profile_id);
+
+-- Unlike likes/comments/follows, notifications are never meant to be public -
+-- only the recipient ever sees their own.
+create policy "notifications are private to their recipient"
+  on notifications for select
+  using (auth.uid() = profile_id);
+
+create policy "recipients mark their own notifications read"
+  on notifications for update
+  using (auth.uid() = profile_id)
+  with check (auth.uid() = profile_id);
 
 -- A fresh project should now run supabase/migrations/002b_seed_frictions.sql
 -- to load the 144 starting frictions into the table above.

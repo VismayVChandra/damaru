@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import {
+  attachEngagement,
   countFollowers,
   countFollowing,
   getProfileByHandle,
@@ -32,7 +33,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ handle: st
     viewer && !isOwnProfile ? isFollowing(viewer.id, profile.id) : Promise.resolve(null),
   ]);
 
-  const shipped = allProblems.filter((p) => p.status === "shipped");
+  const shipped = await attachEngagement(
+    allProblems.filter((p) => p.status === "shipped"),
+    viewer?.id ?? null,
+  );
 
   return NextResponse.json({
     profile: {

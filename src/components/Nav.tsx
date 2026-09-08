@@ -4,15 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Mark from "@/components/Mark";
+import NotificationBell from "@/components/NotificationBell";
 import { logout } from "@/app/auth/actions";
 import { api } from "@/lib/client";
 import type { Profile } from "@/lib/types";
+
+/** Only shown once signed in - there is nobody to follow yet from a fresh account. */
+const SIGNED_IN_LINKS = [{ href: "/home", label: "Home" }];
 
 const LINKS = [
   { href: "/profile", label: "Profile" },
   { href: "/generate", label: "Generate" },
   { href: "/dashboard", label: "My problems" },
-  { href: "/browse", label: "Club feed" },
+  { href: "/browse", label: "Explore" },
   { href: "/pair", label: "Pairing" },
   { href: "/collaborate", label: "Collaborate" },
   { href: "/submit", label: "Submit a friction" },
@@ -39,6 +43,7 @@ export default function Nav() {
   }, [pathname]);
 
   const links = [
+    ...(me?.user ? SIGNED_IN_LINKS : []),
     ...LINKS,
     ...(me?.profile?.isAdmin ? [{ href: "/admin/frictions", label: "Review" }] : []),
   ];
@@ -70,6 +75,7 @@ export default function Nav() {
             in" must never be the thing hidden behind a tap. */}
         {me === undefined ? null : me.user ? (
           <form action={logout} className="row nav-auth" style={{ gap: 8 }}>
+            <NotificationBell />
             {me.profile ? (
               <Link href={`/u/${me.profile.handle}`} className="nav-handle">
                 @{me.profile.handle}
