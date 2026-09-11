@@ -2,9 +2,33 @@
 
 A website where people upload their skills and interests, and get back a project
 problem statement that is **specific to them**, **doable with what they know**, and
-**never issued to anyone else**.
+**never issued to anyone else** — then a small social layer around it: follow people,
+see what they're building in a home feed, cheer it on or comment, and ask to join in.
 
 Next.js + TypeScript, Supabase (Postgres + auth), deployable to Vercel for free.
+
+---
+
+## What it looks like
+
+The pitch, then the actual product.
+
+![Landing page](docs/screenshots/landing.png)
+
+Honest self-assessment first — skills marked by how comfortable you actually are, not
+a wishlist:
+
+![Profile builder](docs/screenshots/profile-builder.png)
+
+A batch to triage, one card at a time — not a wall of text to read before deciding
+anything:
+
+![Generate and triage](docs/screenshots/generate-triage.png)
+
+Then it's yours to track: tick off requirements, log what moved, flag it as open for
+someone else to join:
+
+![Dashboard](docs/screenshots/dashboard.png)
 
 ---
 
@@ -178,6 +202,8 @@ stretch the person on — `fit.ts` computes it to render one chip and then throw
 it away. `/pair` points that data outward: who covers what you don't, and what
 you cover for them.
 
+![Pairing](docs/screenshots/pairing.png)
+
 Two rules the implementation holds to, because this is the feature that can land
 badly socially:
 
@@ -192,6 +218,69 @@ badly socially:
 The dashboard also surfaces a recurring-gap note ("design has been the stretch in
 4 of your 6 problems"). It is drawn from problems already issued, and stays
 silent until a category has appeared more than once.
+
+The same page also has a **"Browse by expertise"** directory — every discoverable
+member, filterable by skill category, each with an inline "request to collaborate"
+composer. This is where a *general* collaboration request (not tied to any specific
+problem) comes from; see the next section.
+
+---
+
+## Follow, a home feed, and collaborating
+
+The pieces above (profiles, pairing, problems) exist independently of each other by
+design — but the club is made of people, not just a catalogue, so there is a thin
+social layer stitched across all of it: follow people, get a feed of what they're
+building, react to it, and ask to join in.
+
+### Public profiles, following, likes and comments
+
+Every member has a public page at `/u/[handle]` — bio, skills, interests, and their
+**shipped** work, each with like and comment counts. Following someone is one button;
+follower/following counts are public the same way the club feed already is.
+
+![Public profile](docs/screenshots/public-profile.png)
+
+A problem is treated like a post: anyone signed in can like it (♥) or leave a
+comment, from the dashboard, the feed, or Explore. `Engagement.tsx` is the one
+component that owns this everywhere it appears — optimistic like toggling, lazy-loaded
+comment thread, nothing else needs to know how either works.
+
+### The home feed
+
+`/home` is the default landing page after signing in: the newest saved, building or
+shipped problems from people you follow, newest first, each with its engagement bar
+attached. An account that follows nobody gets pointed at Explore and the pairing
+directory instead of an empty page.
+
+![Home feed](docs/screenshots/home-feed.png)
+
+### Collaboration requests
+
+Two ways to end up building something with someone else, sharing one
+`collab_requests` table (a nullable `problem_id` is the only difference):
+
+- **Flag a specific problem.** From the dashboard, mark a `saved` or `building`
+  problem "open to collaborators." It shows up on `/collaborate`'s Browse tab for
+  everyone else, next to what skill categories it could use a hand with (the same
+  `fit.gaps`/`fit.stretch` data the problem already carries).
+- **A general request.** Found someone through the pairing directory or their
+  profile page whose skills you want, but not around a specific problem? Send them
+  a request directly.
+
+Either way, the request goes to exactly one person, who accepts or declines from
+`/collaborate`'s "My requests" tab — never a public thread, never CC'd to anyone
+else.
+
+![Collaborate](docs/screenshots/collaborate.png)
+
+### Notifications
+
+A bell in the nav with an unread badge: new follower, someone liked or commented on
+your problem, a collaboration request came in or got accepted. It polls quietly every
+45 seconds and marks everything read the moment the dropdown opens.
+
+![Notifications](docs/screenshots/notifications.png)
 
 ---
 
@@ -263,6 +352,8 @@ SQLite version could not run on Vercel's read-only, ephemeral filesystem at all)
 supabase/
   schema.sql             tables, constraints, RLS policies - run once per project
   migrations/            numbered deltas for a project that already has the schema
+docs/
+  screenshots/            images used in this README
 src/
   middleware.ts           refreshes the Supabase session cookie on every request
   app/
@@ -271,32 +362,55 @@ src/
     auth/actions.ts         server actions: login, signup, logout
     (app)/                  auth-gated route group
       layout.tsx             redirects to /login if no session
+      home/                    following-based feed - the default landing page signed in
       profile/                skills, interests, constraints
       generate/                draw new problems
       dashboard/               your problems + status + notes
-      pair/                     who complements you
+      pair/                     who complements you + browse by expertise
+      collaborate/              browse problems open to collaborators + your requests
       submit/                    propose a friction
       admin/frictions/            review queue (is_admin only)
-    browse/                 public club feed (no auth required)
+    browse/                 public "Explore" club feed (no auth required)
+    u/[handle]/             public profile page - follow, shipped work, request to collaborate
     api/
       me/                    GET current session's user + profile
       profile/               GET / POST (session-scoped)
       generate/               POST { count } (session-scoped)
+      home/                    GET following-based feed, with engagement attached
       problems/                GET (your problems, session-scoped)
-      problems/[id]/            PATCH { status, notes, checklist, feedback } - ownership-checked
+      problems/[id]/            PATCH { status, notes, checklist, feedback, lookingForCollaborators } - ownership-checked
       problems/[id]/progress/    POST one "what moved" line
+      problems/[id]/like/         POST toggle a like
+      problems/[id]/comments/     GET / POST comments (GET is public)
+      problems/[id]/collab-requests/  POST request to join a flagged-open problem
+      profiles/[handle]/         GET public profile bundle (shipped work, follower counts)
+      profiles/[handle]/follow/   POST / DELETE
+      profiles/[handle]/collab-requests/  POST a general (non-problem) request
+      collab-requests/            GET incoming + outgoing, split by direction
+      collab-requests/[id]/        PATCH { status: accepted | declined } - recipient-only
+      collaborate/               GET problems flagged open to collaborators
+      directory/                 GET discoverable members, filterable by strong category
+      notifications/              GET recent + unread count
+      notifications/read/          POST mark everything read
       frictions/                GET/POST your own submissions
       admin/frictions/           GET review queue + feedback tally (is_admin only)
       admin/frictions/[id]/       PATCH accept/reject
       pair/                    GET complements + recurring gap
       stats/                  GET counts
   components/
+    Nav.tsx                  top nav + auth state + notification bell
+    ProblemCard.tsx           the full problem view - checklist, progress log, engagement bar
+    Engagement.tsx             the like button + comment thread, shared by every problem view
+    NotificationBell.tsx        unread badge + dropdown, polls every 45s
     SwipeTriage.tsx          drag/tap/arrow-key triage for a freshly generated batch
+    DamaruSpinner.tsx         the loading indicator - an actual damaru being played
+    Mark.tsx                 the wordmark, reused as the spinner's body
   lib/
     types.ts                shared domain types
     db.ts                   Postgres data access via the service-role client
     activity.ts              staleness + checklist progress (shared client/server)
     pairing.ts                complement + recurring-gap logic
+    client.ts                 tiny fetch wrapper client components use to call the API
     supabase/
       server.ts               session-aware client (reads cookies, respects RLS)
       admin.ts                 service-role client (bypasses RLS - server only)
@@ -309,10 +423,8 @@ src/
     engine/
       index.ts                candidate selection  <- the LLM seam
       fit.ts                   doability scoring
-      compose.ts                 prose composition
+      compose.ts                 prose composition, incl. 5 title variants per mechanic
       novelty.ts                  fingerprinting + seeded RNG
-  components/
-    Nav.tsx  ProblemCard.tsx
 ```
 
 ---
@@ -328,8 +440,9 @@ no code change or deploy is involved.
 signals). Frictions then get attached to it through `/submit`.
 
 **Add a mechanic** — append to `MECHANICS` in `catalog/blocks.ts`, list the
-`artifacts` it can ship as, the skill categories it `requires`, and add a short
-imperative to `MECHANIC_ACTION` in `engine/compose.ts` (it becomes the title).
+`artifacts` it can ship as, the skill categories it `requires`, and add a handful of
+short imperative variants to `MECHANIC_ACTIONS` in `engine/compose.ts` (one is picked
+per problem, seeded from its fingerprint, and becomes the title).
 
 **Add a twist** — append to `TWISTS`. This is the cheapest way to multiply the
 space: each new twist multiplies every existing combination.
@@ -364,3 +477,8 @@ person, that is probably right; it would not be on a larger tool.
 actual database) and `src/lib/supabase/types.ts` (the hand-written TypeScript
 `Database` type supabase-js needs to type-check inserts and updates) have to stay
 in sync manually — there is no code generation step wired up.
+
+**Notifications poll, they don't push.** `NotificationBell` checks every 45 seconds
+and on mount - simple, and fine at club scale, but a new follower or comment can take
+up to that long to show up in the badge without a page reload. No websocket or
+Supabase Realtime subscription wired up for it.
