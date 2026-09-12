@@ -201,7 +201,14 @@ export default function DashboardPage() {
       ) : (
         <div className="stack section" style={{ gap: 24 }}>
           {shown.map((p) => (
-            <ProblemCard key={p.id} problem={p} interactive />
+            <ProblemCard
+              key={p.id}
+              problem={p}
+              interactive
+              onStatusChange={(id, status) =>
+                setProblems((prev) => prev.map((q) => (q.id === id ? { ...q, status } : q)))
+              }
+            />
           ))}
         </div>
       )}

@@ -18,6 +18,22 @@ const STATUS_LABEL: Record<Problem["status"], string> = {
   passed: "Passed",
 };
 
+// The footer used to show every other status as an identical grey button -
+// four equally-weighted options with no indication of which one you'd
+// actually reach for. This is the one obvious next step for each status
+// along the pipeline; everything else stays available but demoted, so
+// "what do I do now" has a single, primary answer instead of a lineup.
+const NEXT_STATUS: Partial<Record<Problem["status"], Problem["status"]>> = {
+  new: "saved",
+  saved: "building",
+  building: "shipped",
+};
+const NEXT_LABEL: Partial<Record<Problem["status"], string>> = {
+  new: "Save it",
+  saved: "Start building",
+  building: "Mark as shipped",
+};
+
 function FitMeter({ fit }: { fit: Problem["fit"] }) {
   const pct = Math.round(fit.score * 100);
   return (
@@ -81,6 +97,7 @@ export default function ProblemCard({
   interactive = false,
   canEngage = true,
   startExpanded = false,
+  onStatusChange,
 }: {
   problem: Problem;
   interactive?: boolean;
@@ -90,6 +107,11 @@ export default function ProblemCard({
    * callers (SwipeTriage's "Read the full brief") that already have their
    * own "show me everything" gesture, so this card shouldn't ask again. */
   startExpanded?: boolean;
+  /** Told about every status change (including a rollback if the write
+   * fails), so a parent holding its own list of problems - the dashboard's
+   * momentum stats and filter counts - can stay in sync instead of only
+   * catching up on the next reload. */
+  onStatusChange?: (id: string, status: Problem["status"]) => void;
 }) {
   // A full brief is several screens long - showing all of it before anyone
   // has decided they even want to read it is what made every problem feel
@@ -138,6 +160,7 @@ export default function ProblemCard({
   async function changeStatus(next: Problem["status"]) {
     const previous = status;
     setStatus(next);
+    onStatusChange?.(problem.id, next);
     try {
       await api(`/api/problems/${problem.id}`, {
         method: "PATCH",
@@ -145,6 +168,7 @@ export default function ProblemCard({
       });
     } catch {
       setStatus(previous);
+      onStatusChange?.(problem.id, previous);
     }
   }
 
@@ -538,7 +562,15 @@ export default function ProblemCard({
         )}
         {interactive && (
           <>
-            {STATUS_FLOW.filter((s) => s !== status).map((s) => (
+            {NEXT_STATUS[status] && (
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => changeStatus(NEXT_STATUS[status]!)}
+              >
+                {NEXT_LABEL[status]} &rarr;
+              </button>
+            )}
+            {STATUS_FLOW.filter((s) => s !== status && s !== NEXT_STATUS[status]).map((s) => (
               <button key={s} className="btn btn-sm" onClick={() => changeStatus(s)}>
                 {STATUS_LABEL[s]}
               </button>
