@@ -96,7 +96,7 @@ export default function CollaboratePage() {
             <p>Nothing open right now.</p>
             <p className="faint" style={{ fontSize: 13.5, marginTop: 8 }}>
               A problem shows up here once its owner flags it as open to collaborators, from the{" "}
-              <Link href="/dashboard" style={{ color: "var(--ember)" }}>
+              <Link href="/dashboard" className="inline-link">
                 dashboard
               </Link>
               .
@@ -288,7 +288,7 @@ function IncomingRequestCard({
   return (
     <div className="card card-tight">
       <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
-        <Link href={`/u/${request.fromHandle}`} className="mono" style={{ fontSize: 13.5, fontWeight: 600, color: "inherit" }}>
+        <Link href={`/u/${request.fromHandle}`} className="mono handle-link" style={{ fontSize: 13.5, fontWeight: 600 }}>
           @{request.fromHandle}
         </Link>
         <span className="faint mono" style={{ fontSize: 11 }}>
@@ -331,7 +331,7 @@ function RequestHistoryRow({
   return (
     <div className="row" style={{ justifyContent: "space-between", gap: 10, fontSize: 13.5 }}>
       <span>
-        <Link href={`/u/${other}`} style={{ color: "inherit" }}>
+        <Link href={`/u/${other}`} className="handle-link">
           @{other}
         </Link>{" "}
         <span className="faint">

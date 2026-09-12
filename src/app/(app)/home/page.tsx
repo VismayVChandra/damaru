@@ -65,7 +65,7 @@ export default function HomePage() {
           {items.map((p) => (
             <div key={p.id}>
               <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                <Link href={`/u/${p.handle}`} className="mono" style={{ fontWeight: 700, color: "inherit", fontSize: 14 }}>
+                <Link href={`/u/${p.handle}`} className="mono handle-link" style={{ fontWeight: 700, fontSize: 14 }}>
                   @{p.handle}
                 </Link>
                 <span className="faint mono" style={{ fontSize: 11.5 }}>

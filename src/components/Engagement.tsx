@@ -125,7 +125,7 @@ export default function Engagement({
             <ul className="comment-list">
               {(comments ?? []).map((c) => (
                 <li key={c.id}>
-                  <Link href={`/u/${c.handle}`} className="comment-handle">
+                  <Link href={`/u/${c.handle}`} className="comment-handle handle-link">
                     @{c.handle}
                   </Link>{" "}
                   <span>{c.body}</span>{" "}

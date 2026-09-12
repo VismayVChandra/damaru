@@ -42,7 +42,7 @@ function Row({ item, canEngage }: { item: FeedItem; canEngage: boolean }) {
                   inline handler on a Link can't cross that boundary. The
                   click still bubbles to the parent <summary> and toggles it,
                   but that's moot since the Link navigates away immediately. */}
-              <Link href={`/u/${item.handle}`} style={{ color: "inherit" }}>
+              <Link href={`/u/${item.handle}`} className="handle-link">
                 @{item.handle}
               </Link>{" "}
               · {timeAgo(item.createdAt)}

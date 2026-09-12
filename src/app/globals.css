@@ -93,6 +93,33 @@ textarea:focus-visible,
   outline-offset: 2px;
 }
 
+/* A plain "@handle" is a link everywhere it appears (the club feed, the home
+   feed, a comment, a collab request) but was written with `color: inherit`
+   and nothing else - it opened the profile, but nothing on the page ever
+   told you it was clickable until you clicked it. This is the one shared
+   fix for all of those. */
+.handle-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.handle-link:hover {
+  color: var(--ember);
+  text-decoration: underline;
+}
+
+/* An ember-coloured link inline in a sentence ("See who covers it.") - the
+   colour alone signals it's a link, but nothing changed on hover either. */
+.inline-link {
+  color: var(--ember);
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
+}
+
 /* --- Layout ---------------------------------------------------------------- */
 
 .shell {
@@ -263,6 +290,12 @@ textarea:focus-visible,
   border: 1px solid var(--border);
   border-radius: 999px;
   text-decoration: none;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.nav-handle:hover {
+  border-color: var(--ember);
+  color: var(--ember);
 }
 
 .nav-toggle {
@@ -1657,7 +1690,6 @@ span.meter {
 
 .comment-handle {
   font-weight: 600;
-  color: inherit;
 }
 
 /* --- Notification bell ------------------------------------------------------ */

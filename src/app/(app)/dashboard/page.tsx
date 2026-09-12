@@ -88,7 +88,7 @@ export default function DashboardPage() {
     <main className="shell">
       <div className="eyebrow">
         {profile?.handle ? (
-          <Link href={`/u/${profile.handle}`} style={{ color: "inherit" }}>
+          <Link href={`/u/${profile.handle}`} className="handle-link">
             @{profile.handle}
           </Link>
         ) : null}
@@ -168,7 +168,7 @@ export default function DashboardPage() {
           <p style={{ marginTop: 8, fontSize: 15.5 }}>
             <b>{CATEGORY_LABELS[gap.category]}</b> has been the stretch in {gap.count} of your{" "}
             {gap.total} problems.{" "}
-            <Link href="/pair" style={{ color: "var(--ember)" }}>
+            <Link href="/pair" className="inline-link">
               See who covers it
             </Link>
             .

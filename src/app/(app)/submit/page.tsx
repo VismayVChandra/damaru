@@ -223,7 +223,7 @@ export default function SubmitPage() {
       )}
 
       <p className="muted section" style={{ fontSize: 14 }}>
-        <Link href="/generate" style={{ color: "var(--ember)" }}>
+        <Link href="/generate" className="inline-link">
           Back to generating
         </Link>
       </p>

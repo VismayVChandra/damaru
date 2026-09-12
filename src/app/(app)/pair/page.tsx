@@ -256,8 +256,8 @@ function PairCard({ candidate }: { candidate: PairCandidate }) {
       <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
         <Link
           href={`/u/${candidate.handle}`}
-          className="mono"
-          style={{ fontSize: 14, fontWeight: 600, color: "inherit" }}
+          className="mono handle-link"
+          style={{ fontSize: 14, fontWeight: 600 }}
         >
           @{candidate.handle}
         </Link>
@@ -357,8 +357,8 @@ function DirectoryCard({ member }: { member: DirectoryMember }) {
     <div className="card">
       <Link
         href={`/u/${member.handle}`}
-        className="mono"
-        style={{ fontSize: 14, fontWeight: 600, color: "inherit" }}
+        className="mono handle-link"
+        style={{ fontSize: 14, fontWeight: 600 }}
       >
         @{member.handle}
       </Link>
