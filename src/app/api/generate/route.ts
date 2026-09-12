@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { allFingerprints, getProfileById, insertProblem, listAcceptedFrictions } from "@/lib/db";
+import {
+  allFingerprints,
+  getProfileById,
+  insertProblem,
+  listAcceptedFrictions,
+  listIssuedFrictionIds,
+} from "@/lib/db";
 import { generateProblems, indexFrictions } from "@/lib/engine";
 import type { Problem } from "@/lib/types";
 
@@ -26,7 +32,11 @@ export async function POST(request: Request) {
   const requested = Number(body.count);
   const count = Number.isFinite(requested) ? Math.max(1, Math.min(5, Math.trunc(requested))) : 3;
 
-  const [issued, catalogue] = await Promise.all([allFingerprints(), listAcceptedFrictions()]);
+  const [issued, catalogue, seenFrictions] = await Promise.all([
+    allFingerprints(),
+    listAcceptedFrictions(),
+    listIssuedFrictionIds(profile.id),
+  ]);
   const frictions = indexFrictions(catalogue);
   const saved: Problem[] = [];
 
@@ -37,6 +47,7 @@ export async function POST(request: Request) {
       frictions,
       count: count - saved.length,
       excludeFingerprints: issued,
+      excludeFrictionIds: seenFrictions,
       seed: `${profile.id}:${Date.now()}:${pass}:${Math.random()}`,
     });
 

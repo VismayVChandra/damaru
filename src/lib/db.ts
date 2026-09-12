@@ -253,6 +253,32 @@ export async function allFingerprints(): Promise<Set<string>> {
 }
 
 /**
+ * Every friction this person has ever been issued a problem from, regardless
+ * of status - a fingerprint only blocks the exact (friction, mechanic,
+ * artifact, twist, signal) combination from repeating, so on its own a small
+ * domain's one most-versatile friction can resurface draw after draw with
+ * just a different mechanic. That reads as "I've seen this before" even
+ * though it technically wasn't - the friction and its actor are what a
+ * person actually recognises, not the DNA underneath. Selects only the
+ * payload rather than the fuller `listProblemsForProfile` shape, since this
+ * runs on every generate/reroll and has no use for the progress log.
+ */
+export async function listIssuedFrictionIds(profileId: string): Promise<Set<string>> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("payload")
+    .eq("profile_id", profileId);
+  if (error) throw error;
+
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    const frictionId = (row.payload as ProblemPayload).dna.frictionId;
+    if (frictionId) ids.add(frictionId);
+  }
+  return ids;
+}
+
+/**
  * Insert if the fingerprint is free. Returns null when another request
  * claimed it first, which the caller treats as "draw again".
  */

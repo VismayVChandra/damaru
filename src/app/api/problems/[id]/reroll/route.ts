@@ -7,6 +7,7 @@ import {
   getProfileById,
   insertProblem,
   listAcceptedFrictions,
+  listIssuedFrictionIds,
 } from "@/lib/db";
 import { generateProblems, indexFrictions } from "@/lib/engine";
 import type { Problem } from "@/lib/types";
@@ -41,7 +42,15 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   const profile = await getProfileById(user.id);
   if (!profile) return NextResponse.json({ error: "Build a profile first." }, { status: 404 });
 
-  const [issued, catalogue] = await Promise.all([allFingerprints(), listAcceptedFrictions()]);
+  // Fetched before the old row is deleted below, so the friction being
+  // rerolled away is itself excluded - otherwise the very next draw could
+  // hand back the same friction with just a different mechanic attached,
+  // which is exactly what rerolling was meant to get away from.
+  const [issued, catalogue, seenFrictions] = await Promise.all([
+    allFingerprints(),
+    listAcceptedFrictions(),
+    listIssuedFrictionIds(profile.id),
+  ]);
   const frictions = indexFrictions(catalogue);
 
   // Narrowing "interests" to just this domain steers the draw back into it -
@@ -55,6 +64,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
       frictions,
       count: 1,
       excludeFingerprints: issued,
+      excludeFrictionIds: seenFrictions,
       seed: `${profile.id}:reroll:${id}:${pass}:${Math.random()}`,
     });
     if (!draft) break;

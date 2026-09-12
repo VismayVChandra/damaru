@@ -45,6 +45,11 @@ export interface GenerateOptions {
   count?: number;
   /** Fingerprints already handed out to anyone, globally. */
   excludeFingerprints?: Set<string>;
+  /** Friction ids already issued to this person, on any mechanic - a
+   * fingerprint alone only blocks the exact combination from repeating, not
+   * the same friction resurfacing with a different mechanic, which is what
+   * actually reads as "I've seen this before". */
+  excludeFrictionIds?: Set<string>;
   /** Varying this produces a different draw for the same profile. */
   seed?: string;
 }
@@ -169,7 +174,10 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
   const usedDomains = new Set<string>();
   const usedMechanics = new Set<string>();
   const usedArtifacts = new Set<string>();
-  const usedFrictions = new Set<string>();
+  // Seeded from what this person has already been issued, so a batch (and
+  // every generate/reroll after it) draws frictions they haven't seen yet
+  // before it repeats one with a different mechanic attached.
+  const usedFrictions = new Set<string>(opts.excludeFrictionIds ?? []);
   const usedFingerprints = new Set<string>();
 
   /** One pass at a given relaxation, appending whatever it can find. */
@@ -197,8 +205,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
       const pool = frictions.get(domain.id);
       if (!pool || pool.length === 0) continue;
       const friction: FrictionRecord = pick(rng, pool);
-      const frictionKey = `${domain.id}:${friction.text}`;
-      if (usedFrictions.has(frictionKey)) continue;
+      if (usedFrictions.has(friction.id)) continue;
 
       // Only mechanics this friction could plausibly be answered by, and only
       // those the person can actually build at this bar.
@@ -257,7 +264,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
 
       usedFingerprints.add(fp);
       usedDomains.add(domain.id);
-      usedFrictions.add(frictionKey);
+      usedFrictions.add(friction.id);
       usedMechanics.add(combo.mechanic.id);
       usedArtifacts.add(combo.artifact.id);
     }
