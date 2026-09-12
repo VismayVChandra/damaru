@@ -292,7 +292,7 @@ export default function SwipeTriage({
 
           {expandedId === top.id ? (
             <>
-              <ProblemCard problem={top} interactive={false} />
+              <ProblemCard problem={top} interactive={false} startExpanded />
               <div style={{ padding: "16px 22px" }}>
                 <button className="btn btn-sm" onClick={() => setExpandedId(null)}>
                   &larr; Back to triage

@@ -80,12 +80,25 @@ export default function ProblemCard({
   problem,
   interactive = false,
   canEngage = true,
+  startExpanded = false,
 }: {
   problem: Problem;
   interactive?: boolean;
   /** Whether the viewer is signed in and can like/comment. Counts still show either way. */
   canEngage?: boolean;
+  /** Skip the collapsed teaser and open straight to the full brief - for
+   * callers (SwipeTriage's "Read the full brief") that already have their
+   * own "show me everything" gesture, so this card shouldn't ask again. */
+  startExpanded?: boolean;
 }) {
+  // A full brief is several screens long - showing all of it before anyone
+  // has decided they even want to read it is what made every problem feel
+  // huge. Collapsed by default to a title, hook and a one-line stat row -
+  // the same teaser SwipeTriage already uses to triage a whole batch fast -
+  // with everything else (the fuller statement, the checklist, why it
+  // landed on you, what you'll learn) behind one clear "Read the full
+  // brief" click.
+  const [expanded, setExpanded] = useState(startExpanded);
   const [status, setStatus] = useState<Problem["status"]>(problem.status);
   const [lookingForCollaborators, setLookingForCollaboratorsState] = useState(
     problem.lookingForCollaborators,
@@ -261,6 +274,39 @@ export default function ProblemCard({
 
         <p className="problem-hook">{problem.hook}</p>
 
+        {!expanded && (
+          <>
+            <div className="row problem-stats">
+              <span className="faint mono">fit {Math.round(problem.fit.score * 100)}%</span>
+              <span className="pips">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <span key={i} className="pip" data-on={i <= problem.fit.difficulty ? "true" : "false"} />
+                ))}
+              </span>
+              {done.total > 0 && (
+                <span className="row" style={{ gap: 7 }}>
+                  <span className="meter" style={{ width: 62 }}>
+                    <span
+                      className="meter-fill is-done"
+                      style={{ display: "block", width: `${Math.round(done.ratio * 100)}%` }}
+                    />
+                  </span>
+                  <span className="faint mono">
+                    {done.done}/{done.total} done
+                  </span>
+                </span>
+              )}
+              <span className="faint mono">{problem.fit.estimate}</span>
+            </div>
+
+            <button type="button" className="btn btn-sm problem-expand" onClick={() => setExpanded(true)}>
+              Read the full brief
+            </button>
+          </>
+        )}
+
+        {expanded && (
+          <>
         <div className="block">
           <div className="block-label">The problem</div>
           <p>{problem.statement}</p>
@@ -442,6 +488,12 @@ export default function ProblemCard({
               </ol>
             )}
           </div>
+        )}
+
+        <button type="button" className="btn btn-sm" onClick={() => setExpanded(false)}>
+          Show less
+        </button>
+          </>
         )}
       </div>
 
