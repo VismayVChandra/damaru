@@ -1712,6 +1712,21 @@ span.meter {
   padding: 16px;
 }
 
+/* Anchoring to the bell's own right edge works on desktop, where the bell
+   sits at the far right of the nav. On mobile the bell has "Sign out" and
+   the menu toggle after it, so that same anchor pushes the dropdown left
+   past the edge of a narrow viewport. Pin it under the nav instead. */
+@media (max-width: 640px) {
+  .notif-dropdown {
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: min(420px, calc(100vh - 84px));
+  }
+}
+
 .notif-list {
   list-style: none;
   margin: 0;
