@@ -3,6 +3,7 @@ import type {
   CollabRequest,
   FrictionRecord,
   NotificationType,
+  BuildLogKind,
   Problem,
   ProblemPayload,
   Profile,
@@ -179,6 +180,7 @@ export interface Database {
           to_profile_id: string;
           message: string;
           status: CollabRequest["status"];
+          role_id: string | null;
           created_at: string;
           responded_at: string | null;
         };
@@ -188,6 +190,7 @@ export interface Database {
           to_profile_id: string;
           message?: string;
           status?: CollabRequest["status"];
+          role_id?: string | null;
         };
         Update: {
           status?: CollabRequest["status"];
@@ -213,6 +216,94 @@ export interface Database {
             columns: ["to_profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "collab_requests_role_id_fkey";
+            columns: ["role_id"];
+            isOneToOne: false;
+            referencedRelation: "project_roles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      project_roles: {
+        Row: {
+          id: string;
+          problem_id: string;
+          role_name: string;
+          skills: string[];
+          count_needed: number;
+          description: string;
+          commitment: string;
+          duration: string;
+          open: boolean;
+          created_at: string;
+        };
+        Insert: {
+          problem_id: string;
+          role_name: string;
+          skills?: string[];
+          count_needed?: number;
+          description?: string;
+          commitment?: string;
+          duration?: string;
+          open?: boolean;
+        };
+        Update: {
+          role_name?: string;
+          skills?: string[];
+          count_needed?: number;
+          description?: string;
+          commitment?: string;
+          duration?: string;
+          open?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_roles_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      project_members: {
+        Row: {
+          problem_id: string;
+          profile_id: string;
+          role_name: string;
+          role_id: string | null;
+          joined_at: string;
+        };
+        Insert: {
+          problem_id: string;
+          profile_id: string;
+          role_name?: string;
+          role_id?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["project_members"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "project_members_problem_id_fkey";
+            columns: ["problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "project_members_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "project_members_role_id_fkey";
+            columns: ["role_id"];
+            isOneToOne: false;
+            referencedRelation: "project_roles";
             referencedColumns: ["id"];
           },
         ];
@@ -336,11 +427,17 @@ export interface Database {
           id: string;
           problem_id: string;
           body: string;
+          kind: BuildLogKind;
+          image_url: string | null;
+          link_url: string | null;
           created_at: string;
         };
         Insert: {
           problem_id: string;
           body: string;
+          kind?: BuildLogKind;
+          image_url?: string | null;
+          link_url?: string | null;
         };
         Update: {
           body?: string;

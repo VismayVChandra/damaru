@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import {
-  countBuildingByProfile,
+  countActiveByProfile,
   getProfileById,
   listDiscoverableProfiles,
   listProblemsForProfile,
@@ -20,15 +20,15 @@ export async function GET() {
     return NextResponse.json({ error: "Build a profile first." }, { status: 404 });
   }
 
-  const [others, building, mine] = await Promise.all([
+  const [others, active, mine] = await Promise.all([
     listDiscoverableProfiles(),
-    countBuildingByProfile(),
+    countActiveByProfile(),
     listProblemsForProfile(profile.id),
   ]);
 
   const candidates = findComplements(
     profile,
-    others.map((p) => ({ profile: p, building: building.get(p.id) ?? 0 })),
+    others.map((p) => ({ profile: p, active: active.get(p.id) ?? 0 })),
   );
 
   return NextResponse.json({

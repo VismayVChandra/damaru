@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { attachEngagement, getProfileById, listProblemsForProfile } from "@/lib/db";
+import { attachEngagement, getProfileById, listProblemsForProfile, listProblemsWhereMember } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +15,11 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
   const profile = await getProfileById(user.id);
-  if (!profile) return NextResponse.json({ problems: [], profile: null });
+  if (!profile) return NextResponse.json({ problems: [], joined: [], profile: null });
 
-  const problems = await attachEngagement(await listProblemsForProfile(profile.id), user.id);
-  return NextResponse.json({ problems, profile });
+  const [problems, joined] = await Promise.all([
+    attachEngagement(await listProblemsForProfile(profile.id), user.id),
+    attachEngagement(await listProblemsWhereMember(profile.id), user.id),
+  ]);
+  return NextResponse.json({ problems, joined, profile });
 }

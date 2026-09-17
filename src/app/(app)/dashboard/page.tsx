@@ -7,30 +7,29 @@ import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { checklistProgress, idleDays } from "@/lib/activity";
 import { recurringGap } from "@/lib/pairing";
+import { ACTIVE_STATUSES, STATUS_FLOW, STATUS_LABEL } from "@/lib/status";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import type { Problem, Profile } from "@/lib/types";
 
 const FILTERS: { id: "all" | Problem["status"]; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "new", label: "New" },
-  { id: "saved", label: "Saved" },
-  { id: "building", label: "Building" },
-  { id: "shipped", label: "Shipped" },
-  { id: "passed", label: "Passed" },
+  ...STATUS_FLOW.map((s) => ({ id: s, label: STATUS_LABEL[s] })),
 ];
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [joined, setJoined] = useState<Problem[]>([]);
   const [filter, setFilter] = useState<"all" | Problem["status"]>("all");
   const [state, setState] = useState<"loading" | "ready" | "no-profile">("loading");
 
   // Auth is already guaranteed by the (app) layout - the only thing left to
   // find out is whether this account has a profile yet.
   useEffect(() => {
-    api<{ problems: Problem[]; profile: Profile | null }>("/api/problems")
-      .then(({ problems, profile }) => {
+    api<{ problems: Problem[]; joined: Problem[]; profile: Profile | null }>("/api/problems")
+      .then(({ problems, joined, profile }) => {
         setProblems(problems);
+        setJoined(joined ?? []);
         setProfile(profile);
         setState(profile ? "ready" : "no-profile");
       })
@@ -47,11 +46,11 @@ export default function DashboardPage() {
   // quiet. A raw count of issued problems rewards collecting them.
   const momentum = useMemo(() => {
     const shipped = problems.filter((p) => p.status === "shipped").length;
-    const building = problems.filter((p) => p.status === "building").length;
+    const active = problems.filter((p) => ACTIVE_STATUSES.includes(p.status)).length;
     const idle = problems.filter((p) => idleDays(p) !== null).length;
     const ticks = problems.reduce((n, p) => n + checklistProgress(p).done, 0);
     const logged = problems.reduce((n, p) => n + (p.progress?.length ?? 0), 0);
-    return { shipped, building, idle, ticks, logged };
+    return { shipped, active, idle, ticks, logged };
   }, [problems]);
 
   const gap = useMemo(() => recurringGap(problems), [problems]);
@@ -118,7 +117,7 @@ export default function DashboardPage() {
               <span className="stat-glyph" aria-hidden="true">
                 ◐
               </span>
-              {momentum.building}
+              {momentum.active}
             </div>
             <div className="faint" style={{ fontSize: 13 }}>
               in progress
@@ -211,6 +210,20 @@ export default function DashboardPage() {
             />
           ))}
         </div>
+      )}
+
+      {joined.length > 0 && (
+        <section className="section">
+          <h2>Projects I joined</h2>
+          <p className="faint" style={{ fontSize: 13.5, marginTop: 4 }}>
+            Someone else's problem, your name on the team.
+          </p>
+          <div className="stack" style={{ gap: 24, marginTop: 18 }}>
+            {joined.map((p) => (
+              <ProblemCard key={p.id} problem={p} />
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );

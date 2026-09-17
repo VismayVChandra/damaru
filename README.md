@@ -258,10 +258,11 @@ directory instead of an empty page.
 ### Collaboration requests
 
 Two ways to end up building something with someone else, sharing one
-`collab_requests` table (a nullable `problem_id` is the only difference):
+`collab_requests` table (a nullable `problem_id`, and a nullable `role_id` once
+a project has published roles, are the only difference):
 
-- **Flag a specific problem.** From the dashboard, mark a `saved` or `building`
-  problem "open to collaborators." It shows up on `/collaborate`'s Browse tab for
+- **Flag a specific problem.** From the dashboard, mark an in-progress problem
+  "open to collaborators." It shows up on `/collaborate`'s Browse tab for
   everyone else, next to what skill categories it could use a hand with (the same
   `fit.gaps`/`fit.stretch` data the problem already carries).
 - **A general request.** Found someone through the pairing directory or their
@@ -270,9 +271,43 @@ Two ways to end up building something with someone else, sharing one
 
 Either way, the request goes to exactly one person, who accepts or declines from
 `/collaborate`'s "My requests" tab — never a public thread, never CC'd to anyone
-else.
+else. Accepting a request tied to a problem does one more thing now: it adds the
+requester to that project's team. See the next section.
 
 ![Collaborate](docs/screenshots/collaborate.png)
+
+### Projects: a real ladder, teams, open roles, and a build log
+
+A problem stops being just a generated brief the moment someone commits to it.
+`ProjectStatus` (`src/lib/status.ts`) is the real pipeline every project moves
+through:
+
+```
+new → idea → prototype → building → beta → shipped   (+ passed, from anywhere)
+```
+
+`new` is the generator's raw output, before anyone has decided anything — the
+spark. Everything from `idea` on is a project: it can have a **team** beyond
+its single creator (`project_members`), the owner can **publish open roles**
+people apply to (`project_roles` — name, skills, seats needed, commitment,
+duration; applying rides the exact same `collab_requests` accept/decline flow
+above, just with `role_id` set), and it gets a **typed build log** instead of
+a plain-text progress note: 🟢 progress, 🔴 blocked, 🟡 looking for help, 🎉
+milestone, 🚀 shipped, each optionally carrying a link or an image URL
+(`progress_entries.kind`/`image_url`/`link_url` — both URLs are validated as
+plain `https?://` links both in the database and in the API route, since they
+render as `<a href>`/`<img src>`).
+
+Every project also gets a real, shareable page at **`/p/[id]`** — public, so a
+link works signed out — composing the existing `<ProblemCard>` with three new
+pieces: `<TeamSection>`, `<OpenRoles>`, and `<BuildLog density="full">`. Every
+place a problem already appeared in a list (the dashboard, the home feed,
+Explore, a profile's shipped grid, a collaboration card) now links its title
+straight there.
+
+A seat filling is checked twice — once when someone applies, once again right
+before the owner accepts — since two people can apply to the same one-seat
+role before either is answered.
 
 ### Notifications
 
@@ -316,7 +351,7 @@ a compact card (title, hook, fit%), decided by drag, tap, or the arrow keys,
 with an explicit "read the full brief" escape hatch before committing — nobody
 should be swiping blind on something they might spend weeks building.
 
-Swiping does not invent new state. It writes the same `saved` / `passed`
+Swiping does not invent new state. It writes the same `idea` / `passed`
 statuses the dashboard already understands, just with a faster gesture for the
 one moment - right after generation - where that's the only decision that
 matters.
@@ -372,22 +407,26 @@ src/
       admin/frictions/            review queue (is_admin only)
     browse/                 public "Explore" club feed (no auth required)
     u/[handle]/             public profile page - follow, shipped work, request to collaborate
+    p/[id]/                 a project's own page - team, open roles, build log (public)
     api/
       me/                    GET current session's user + profile
       profile/               GET / POST (session-scoped)
       generate/               POST { count } (session-scoped)
       home/                    GET following-based feed, with engagement attached
-      problems/                GET (your problems, session-scoped)
+      problems/                GET (your problems + projects you joined, session-scoped)
       problems/[id]/            PATCH { status, notes, checklist, feedback, lookingForCollaborators } - ownership-checked
-      problems/[id]/progress/    POST one "what moved" line
+      problems/[id]/progress/    POST one build-log entry { body, kind, imageUrl?, linkUrl? } - owner or team member
       problems/[id]/like/         POST toggle a like
       problems/[id]/comments/     GET / POST comments (GET is public)
-      problems/[id]/collab-requests/  POST request to join a flagged-open problem
+      problems/[id]/collab-requests/  POST request to join a flagged-open problem or a specific role
+      problems/[id]/roles/          GET (public) / POST publish an open role - owner-only
+      problems/[id]/roles/[roleId]/  PATCH edit or close / DELETE - owner-only
+      problems/[id]/members/[profileId]/  DELETE - owner removes anyone, a member removes themselves
       profiles/[handle]/         GET public profile bundle (shipped work, follower counts)
       profiles/[handle]/follow/   POST / DELETE
       profiles/[handle]/collab-requests/  POST a general (non-problem) request
       collab-requests/            GET incoming + outgoing, split by direction
-      collab-requests/[id]/        PATCH { status: accepted | declined } - recipient-only
+      collab-requests/[id]/        PATCH { status: accepted | declined } - recipient-only, adds team membership on accept
       collaborate/               GET problems flagged open to collaborators
       directory/                 GET discoverable members, filterable by strong category
       notifications/              GET recent + unread count
@@ -399,7 +438,10 @@ src/
       stats/                  GET counts
   components/
     Nav.tsx                  top nav + auth state + notification bell
-    ProblemCard.tsx           the full problem view - checklist, progress log, engagement bar
+    ProblemCard.tsx           the full problem view - checklist, build log, engagement bar
+    BuildLog.tsx               typed build-log timeline + composer, two densities (compact/full)
+    TeamSection.tsx             a project's team list, owner-managed
+    OpenRoles.tsx               published roles + apply flow + the owner's "publish a role" form
     Engagement.tsx             the like button + comment thread, shared by every problem view
     NotificationBell.tsx        unread badge + dropdown, polls every 45s
     SwipeTriage.tsx          drag/tap/arrow-key triage for a freshly generated batch
@@ -407,6 +449,7 @@ src/
     Mark.tsx                 the wordmark, reused as the spinner's body
   lib/
     types.ts                shared domain types
+    status.ts                 the project status ladder + build-log kinds - single source of truth
     db.ts                   Postgres data access via the service-role client
     activity.ts              staleness + checklist progress (shared client/server)
     pairing.ts                complement + recurring-gap logic

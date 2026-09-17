@@ -51,18 +51,30 @@ create table problems (
   looking_for_collaborators boolean not null default false,
   created_at  timestamptz not null default now(),
 
-  constraint status_valid check (status in ('new', 'saved', 'building', 'shipped', 'passed'))
+  -- new -> idea -> prototype -> building -> beta -> shipped, or passed
+  -- (terminal, reachable from anywhere). "new" is the generator's raw
+  -- output, before anyone has committed to it as a project at all.
+  constraint status_valid check (status in ('new', 'idea', 'prototype', 'building', 'beta', 'shipped', 'passed'))
 );
 
--- One line per "what moved". A status dropdown records where something ended
--- up; this records that it is actually moving.
+-- One entry per bit of movement on a project - the build log. A status
+-- dropdown records where something ended up; this records that it is
+-- actually moving, and what kind of update it was.
 create table progress_entries (
   id         uuid primary key default gen_random_uuid(),
   problem_id uuid not null references problems(id) on delete cascade,
   body       text not null,
+  kind       text not null default 'progress',
+  -- Both render as <a href> / <img src> - validated here and re-checked in
+  -- the API route, since an unvalidated value here would be stored XSS.
+  image_url  text,
+  link_url   text,
   created_at timestamptz not null default now(),
 
-  constraint body_not_empty check (length(trim(body)) > 0)
+  constraint body_not_empty check (length(trim(body)) > 0),
+  constraint progress_kind_valid check (kind in ('progress', 'blocked', 'looking_for_help', 'milestone', 'shipped')),
+  constraint progress_link_url_valid check (link_url is null or (link_url ~ '^https?://' and char_length(link_url) <= 2000)),
+  constraint progress_image_url_valid check (image_url is null or (image_url ~ '^https?://' and char_length(image_url) <= 2000))
 );
 
 -- The friction catalogue the generator draws from. Domains, mechanics,
@@ -106,6 +118,7 @@ create index idx_problems_profile on problems(profile_id);
 create index idx_problems_created on problems(created_at desc);
 create index idx_progress_problem on progress_entries(problem_id, created_at desc);
 create index idx_problems_friction on problems(friction_id);
+create index idx_problems_status on problems(status);
 
 -- Public profile pages' follow graph. Counts are meant to be visible to
 -- everyone, which is why the read policy below is unrestricted.
@@ -144,6 +157,54 @@ create index idx_collab_to on collab_requests(to_profile_id, status);
 create index idx_collab_from on collab_requests(from_profile_id);
 create index idx_collab_problem on collab_requests(problem_id);
 create index idx_problems_looking on problems(looking_for_collaborators) where looking_for_collaborators;
+
+-- Specific open roles a project owner publishes ("UI/UX Designer x 1").
+-- Applying to one rides the collab_requests pipeline above via the role_id
+-- column added to it just below, rather than a parallel accept/decline system.
+create table project_roles (
+  id           uuid primary key default gen_random_uuid(),
+  problem_id   uuid not null references problems(id) on delete cascade,
+  role_name    text not null,
+  skills       jsonb not null default '[]'::jsonb,
+  count_needed int  not null default 1,
+  description  text not null default '',
+  commitment   text not null default '',
+  duration     text not null default '',
+  open         boolean not null default true,
+  created_at   timestamptz not null default now(),
+
+  constraint role_name_len       check (char_length(btrim(role_name)) between 2 and 60),
+  constraint role_count_valid    check (count_needed between 1 and 20),
+  constraint role_desc_len       check (char_length(description) <= 500),
+  constraint role_commitment_len check (char_length(commitment) <= 60),
+  constraint role_duration_len   check (char_length(duration) <= 60)
+);
+
+create index idx_roles_problem on project_roles(problem_id, created_at);
+
+-- References a role, so this can only be added once project_roles exists.
+alter table collab_requests
+  add column role_id uuid references project_roles(id) on delete set null;
+
+create index idx_collab_role on collab_requests(role_id);
+
+-- A project's team. The owner is never a row here - problems.profile_id
+-- already means "owner"; the app synthesises the owner as the first team
+-- entry instead of duplicating that fact. role_id -> on delete set null so a
+-- member's credit for a role survives the owner later deleting/renaming it.
+create table project_members (
+  problem_id uuid not null references problems(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  role_name  text not null default '',
+  role_id    uuid references project_roles(id) on delete set null,
+  joined_at  timestamptz not null default now(),
+
+  primary key (problem_id, profile_id),
+  constraint member_role_len check (char_length(role_name) <= 60)
+);
+
+create index idx_members_profile on project_members(profile_id);
+create index idx_members_role on project_members(role_id);
 
 -- Likes + comments treat a problem like a post - the engagement loop that
 -- makes the feed worth returning to, not just a directory.
@@ -201,6 +262,8 @@ alter table progress_entries enable row level security;
 alter table frictions enable row level security;
 alter table follows enable row level security;
 alter table collab_requests enable row level security;
+alter table project_roles enable row level security;
+alter table project_members enable row level security;
 alter table problem_likes enable row level security;
 alter table problem_comments enable row level security;
 alter table notifications enable row level security;
@@ -228,20 +291,29 @@ create policy "handles are publicly readable"
   on profiles for select
   using (true);
 
--- Progress entries inherit ownership from the problem they belong to, and are
--- publicly readable for the same reason the feed is.
-create policy "progress entries are owned via their problem"
+-- Progress entries (the build log) are writable by the project's owner or
+-- any of its team members - teams are the whole point - and publicly
+-- readable for the same reason the feed is.
+create policy "progress entries are written by the project's team"
   on progress_entries for all
   using (
     exists (
       select 1 from problems p
       where p.id = progress_entries.problem_id and p.profile_id = auth.uid()
     )
+    or exists (
+      select 1 from project_members m
+      where m.problem_id = progress_entries.problem_id and m.profile_id = auth.uid()
+    )
   )
   with check (
     exists (
       select 1 from problems p
       where p.id = progress_entries.problem_id and p.profile_id = auth.uid()
+    )
+    or exists (
+      select 1 from project_members m
+      where m.problem_id = progress_entries.problem_id and m.profile_id = auth.uid()
     )
   );
 
@@ -289,6 +361,32 @@ create policy "recipients respond to their own collab requests"
   on collab_requests for update
   using (auth.uid() = to_profile_id)
   with check (auth.uid() = to_profile_id);
+
+create policy "project roles are publicly readable"
+  on project_roles for select
+  using (true);
+
+create policy "project roles are managed by the project owner"
+  on project_roles for all
+  using (exists (select 1 from problems p
+                 where p.id = project_roles.problem_id and p.profile_id = auth.uid()))
+  with check (exists (select 1 from problems p
+                 where p.id = project_roles.problem_id and p.profile_id = auth.uid()));
+
+create policy "team membership is publicly readable"
+  on project_members for select
+  using (true);
+
+create policy "the project owner manages its team"
+  on project_members for all
+  using (exists (select 1 from problems p
+                 where p.id = project_members.problem_id and p.profile_id = auth.uid()))
+  with check (exists (select 1 from problems p
+                 where p.id = project_members.problem_id and p.profile_id = auth.uid()));
+
+create policy "members can remove themselves"
+  on project_members for delete
+  using (auth.uid() = profile_id);
 
 create policy "likes are publicly readable"
   on problem_likes for select

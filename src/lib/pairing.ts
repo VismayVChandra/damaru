@@ -28,15 +28,15 @@ export interface PairCandidate {
   youCover: SkillCategory[];
   /** Domains you both said you care about. */
   sharedInterests: string[];
-  /** How many problems they are actively building right now. */
-  building: number;
+  /** How many projects they have actively in flight right now. */
+  active: number;
   /** True when the cover runs both ways - the pairings worth making. */
   mutual: boolean;
 }
 
 export interface PairInput {
   profile: Profile;
-  building: number;
+  active: number;
 }
 
 export function findComplements(me: Profile, others: PairInput[]): PairCandidate[] {
@@ -45,7 +45,7 @@ export function findComplements(me: Profile, others: PairInput[]): PairCandidate
 
   const candidates: PairCandidate[] = [];
 
-  for (const { profile: them, building } of others) {
+  for (const { profile: them, active } of others) {
     if (them.id === me.id) continue;
 
     const theirs = categoryStrengths(them);
@@ -73,7 +73,7 @@ export function findComplements(me: Profile, others: PairInput[]): PairCandidate
       theyCover,
       youCover,
       sharedInterests: them.interests.filter((i) => myInterests.has(i)),
-      building,
+      active,
       mutual: theyCover.length > 0 && youCover.length > 0,
     });
   }

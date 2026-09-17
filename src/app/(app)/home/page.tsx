@@ -41,7 +41,7 @@ export default function HomePage() {
       <p className="lede" style={{ marginTop: 14 }}>
         {followingCount === 0
           ? "You aren't following anyone yet - follow people whose work you want to see here."
-          : "Newest saved, building or shipped work from the people you follow. Cheer it on, ask a question, or send a request to join in."}
+          : "The newest projects in progress or shipped from the people you follow. Cheer it on, ask a question, or send a request to join in."}
       </p>
 
       {followingCount === 0 ? (
@@ -58,7 +58,7 @@ export default function HomePage() {
         </div>
       ) : items.length === 0 ? (
         <div className="empty">
-          <p>Nobody you follow has anything saved, building or shipped yet.</p>
+          <p>Nobody you follow has a project in progress or shipped yet.</p>
         </div>
       ) : (
         <div className="stack section" style={{ gap: 28 }}>

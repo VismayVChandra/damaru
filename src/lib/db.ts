@@ -1,7 +1,9 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { ACTIVE_STATUSES, COLLAB_OPEN_STATUSES, COMMITTED_STATUSES } from "@/lib/status";
 import type {
   AppNotification,
+  BuildLogKind,
   Checklist,
   CollabRequest,
   CollabRequestStatus,
@@ -12,6 +14,8 @@ import type {
   ProblemPayload,
   ProgressEntry,
   Profile,
+  ProjectRole,
+  TeamMember,
 } from "@/lib/types";
 
 /**
@@ -191,6 +195,9 @@ interface ProgressRow {
   id: string;
   problem_id: string;
   body: string;
+  kind: BuildLogKind;
+  image_url: string | null;
+  link_url: string | null;
   created_at: string;
 }
 
@@ -215,6 +222,9 @@ function rowToProgress(row: ProgressRow): ProgressEntry {
     id: row.id,
     problemId: row.problem_id,
     body: row.body,
+    kind: row.kind ?? "progress",
+    imageUrl: row.image_url,
+    linkUrl: row.link_url,
     createdAt: row.created_at,
   };
 }
@@ -339,6 +349,12 @@ function packProblem(problem: Problem) {
     createdAt,
     dna,
     fit,
+    // Loaded-where-needed view data, same as `progress` above - none of
+    // these belong in the immutable payload, so they're pulled out here and
+    // never spread into `rest`.
+    team,
+    roles,
+    memberCount,
     ...rest
   } = problem;
   return {
@@ -417,11 +433,20 @@ export async function updateProblem(
   return getProblem(id);
 }
 
-/** Append one "what moved" line to a problem. */
-export async function addProgressEntry(problemId: string, body: string): Promise<ProgressEntry> {
+/** Append one entry to a project's build log. */
+export async function addProgressEntry(
+  problemId: string,
+  input: { body: string; kind?: BuildLogKind; imageUrl?: string | null; linkUrl?: string | null },
+): Promise<ProgressEntry> {
   const { data, error } = await getAdminClient()
     .from("progress_entries")
-    .insert({ problem_id: problemId, body })
+    .insert({
+      problem_id: problemId,
+      body: input.body,
+      kind: input.kind ?? "progress",
+      image_url: input.imageUrl ?? null,
+      link_url: input.linkUrl ?? null,
+    })
     .select()
     .single();
 
@@ -469,7 +494,7 @@ export async function listFeed(limit = 40): Promise<(Problem & { handle: string 
 /**
  * The home feed: recent problems from people the viewer follows, newest
  * first - the actual "why open the app today" screen. Restricted to
- * saved/building/shipped for the same reason `listOpenForCollaboration` is:
+ * committed statuses for the same reason `listOpenForCollaboration` is:
  * a "new" draw hasn't been kept yet, so it isn't really an update about
  * someone's work.
  */
@@ -487,7 +512,7 @@ export async function listFollowingFeed(viewerId: string, limit = 40): Promise<(
     .from("problems")
     .select("*, profiles!problems_profile_id_fkey(handle)")
     .in("profile_id", followingIds)
-    .in("status", ["saved", "building", "shipped"])
+    .in("status", COMMITTED_STATUSES)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -679,12 +704,12 @@ export async function listDiscoverableProfiles(): Promise<Profile[]> {
   return (data ?? []).map((r) => rowToProfile(r as ProfileRow));
 }
 
-/** How many problems each profile is actively building, for pairing context. */
-export async function countBuildingByProfile(): Promise<Map<string, number>> {
+/** How many projects each profile has actively in flight, for pairing context. */
+export async function countActiveByProfile(): Promise<Map<string, number>> {
   const { data, error } = await getAdminClient()
     .from("problems")
     .select("profile_id")
-    .eq("status", "building");
+    .in("status", ACTIVE_STATUSES);
 
   if (error) throw error;
   const counts = new Map<string, number>();
@@ -699,15 +724,15 @@ export async function countBuildingByProfile(): Promise<Map<string, number>> {
 
 /**
  * Problems flagged open to collaborators, newest first, with the owner's
- * handle. Restricted to saved/building - a "new" problem hasn't even been
- * kept yet, and a shipped/passed one is done.
+ * handle. Restricted to statuses that can still take on a collaborator - a
+ * "new" problem hasn't even been kept yet, and a shipped/passed one is done.
  */
 export async function listOpenForCollaboration(): Promise<(Problem & { handle: string })[]> {
   const { data, error } = await getAdminClient()
     .from("problems")
     .select("*, profiles!problems_profile_id_fkey(handle)")
     .eq("looking_for_collaborators", true)
-    .in("status", ["saved", "building"])
+    .in("status", COLLAB_OPEN_STATUSES)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -724,37 +749,45 @@ interface CollabRequestRow {
   to_profile_id: string;
   message: string;
   status: CollabRequestStatus;
+  role_id: string | null;
   created_at: string;
   responded_at: string | null;
 }
 
 /**
  * Fills in the handles (and, for problem-tied requests, the problem's
- * title/domain) that the row itself doesn't carry. Done as a couple of
- * batched follow-up queries rather than a PostgREST embed, since
- * `collab_requests` has two foreign keys into `profiles` - disambiguating
- * that in an embedded select needs exact constraint-name hints, and this is
- * club-scale data where a plain `.in(...)` is simpler and just as fast.
+ * title/domain, and for role-tied requests, the role's name) that the row
+ * itself doesn't carry. Done as batched follow-up queries rather than a
+ * PostgREST embed, since `collab_requests` has two foreign keys into
+ * `profiles` - disambiguating that in an embedded select needs exact
+ * constraint-name hints, and this is club-scale data where a plain
+ * `.in(...)` is simpler and just as fast.
  */
 async function hydrateCollabRequests(rows: CollabRequestRow[]): Promise<CollabRequest[]> {
   if (rows.length === 0) return [];
 
   const profileIds = [...new Set(rows.flatMap((r) => [r.from_profile_id, r.to_profile_id]))];
   const problemIds = [...new Set(rows.map((r) => r.problem_id).filter((id): id is string => id !== null))];
+  const roleIds = [...new Set(rows.map((r) => r.role_id).filter((id): id is string => id !== null))];
 
-  const [profilesRes, problemsRes] = await Promise.all([
+  const [profilesRes, problemsRes, rolesRes] = await Promise.all([
     getAdminClient().from("profiles").select("id, handle").in("id", profileIds),
     problemIds.length > 0
       ? getAdminClient().from("problems").select("id, payload").in("id", problemIds)
       : Promise.resolve({ data: [] as { id: string; payload: ProblemPayload }[], error: null }),
+    roleIds.length > 0
+      ? getAdminClient().from("project_roles").select("id, role_name").in("id", roleIds)
+      : Promise.resolve({ data: [] as { id: string; role_name: string }[], error: null }),
   ]);
   if (profilesRes.error) throw profilesRes.error;
   if (problemsRes.error) throw problemsRes.error;
+  if (rolesRes.error) throw rolesRes.error;
 
   const handleById = new Map((profilesRes.data ?? []).map((p) => [p.id as string, p.handle as string]));
   const problemById = new Map(
     (problemsRes.data ?? []).map((p) => [p.id as string, p.payload as ProblemPayload]),
   );
+  const roleNameById = new Map((rolesRes.data ?? []).map((r) => [r.id as string, r.role_name as string]));
 
   return rows.map((row) => {
     const problem = row.problem_id ? problemById.get(row.problem_id) : undefined;
@@ -772,6 +805,8 @@ async function hydrateCollabRequests(rows: CollabRequestRow[]): Promise<CollabRe
       problemTitle: problem?.title,
       problemDomainIcon: problem?.domainIcon,
       problemDomainLabel: problem?.domainLabel,
+      roleId: row.role_id,
+      roleName: row.role_id ? roleNameById.get(row.role_id) : undefined,
     };
   });
 }
@@ -782,6 +817,8 @@ export interface CollabRequestInput {
   fromProfileId: string;
   toProfileId: string;
   message: string;
+  /** Set when this request is an application to a specific published role. */
+  roleId?: string | null;
 }
 
 export async function createCollabRequest(input: CollabRequestInput): Promise<CollabRequest> {
@@ -792,6 +829,7 @@ export async function createCollabRequest(input: CollabRequestInput): Promise<Co
       from_profile_id: input.fromProfileId,
       to_profile_id: input.toProfileId,
       message: input.message,
+      role_id: input.roleId ?? null,
     })
     .select()
     .single();
@@ -801,11 +839,16 @@ export async function createCollabRequest(input: CollabRequestInput): Promise<Co
   return hydrated;
 }
 
-/** So the route can refuse a duplicate before it ever reaches the database. */
+/**
+ * So the route can refuse a duplicate before it ever reaches the database.
+ * The dedupe key includes `roleId`, so applying to a second open role on the
+ * same project isn't wrongly rejected as a repeat of the first application.
+ */
 export async function hasPendingCollabRequest(
   fromProfileId: string,
   toProfileId: string,
   problemId: string | null,
+  roleId: string | null = null,
 ): Promise<boolean> {
   let query = getAdminClient()
     .from("collab_requests")
@@ -814,6 +857,7 @@ export async function hasPendingCollabRequest(
     .eq("to_profile_id", toProfileId)
     .eq("status", "pending");
   query = problemId ? query.eq("problem_id", problemId) : query.is("problem_id", null);
+  query = roleId ? query.eq("role_id", roleId) : query.is("role_id", null);
 
   const { count, error } = await query;
   if (error) throw error;
@@ -1087,5 +1131,276 @@ export async function markNotificationsRead(profileId: string): Promise<void> {
     .update({ read: true })
     .eq("profile_id", profileId)
     .eq("read", false);
+  if (error) throw error;
+}
+
+// --- Team ----------------------------------------------------------------
+
+interface ProjectMemberRow {
+  problem_id: string;
+  profile_id: string;
+  role_name: string;
+  role_id: string | null;
+  joined_at: string;
+}
+
+/**
+ * A project's team: the owner first - synthesised from `problems.profile_id`,
+ * never a row of its own (see the schema comment on `project_members`) - then
+ * everyone whose collab request to join was accepted, oldest first. Batched
+ * `.in()` over `profiles` rather than an embed, for consistency with the
+ * rest of this file's hydration pattern.
+ */
+export async function listTeamMembers(problemId: string): Promise<TeamMember[]> {
+  const { data: problemRow, error: problemErr } = await getAdminClient()
+    .from("problems")
+    .select("profile_id, created_at")
+    .eq("id", problemId)
+    .maybeSingle();
+  if (problemErr) throw problemErr;
+  if (!problemRow) return [];
+
+  const { data: memberRows, error: memberErr } = await getAdminClient()
+    .from("project_members")
+    .select("problem_id, profile_id, role_name, role_id, joined_at")
+    .eq("problem_id", problemId)
+    .order("joined_at", { ascending: true });
+  if (memberErr) throw memberErr;
+
+  const members = (memberRows ?? []) as ProjectMemberRow[];
+  const profileIds = [problemRow.profile_id, ...members.map((m) => m.profile_id)];
+  const { data: profileRows, error: profilesErr } = await getAdminClient()
+    .from("profiles")
+    .select("id, handle, display_name")
+    .in("id", profileIds);
+  if (profilesErr) throw profilesErr;
+
+  const profileById = new Map(
+    (profileRows ?? []).map((p) => [
+      p.id as string,
+      { handle: p.handle as string, displayName: p.display_name as string },
+    ]),
+  );
+
+  const owner: TeamMember = {
+    profileId: problemRow.profile_id,
+    handle: profileById.get(problemRow.profile_id)?.handle ?? "unknown",
+    displayName: profileById.get(problemRow.profile_id)?.displayName ?? "unknown",
+    roleName: "",
+    roleId: null,
+    isOwner: true,
+    joinedAt: problemRow.created_at,
+  };
+
+  return [
+    owner,
+    ...members.map((m) => ({
+      profileId: m.profile_id,
+      handle: profileById.get(m.profile_id)?.handle ?? "unknown",
+      displayName: profileById.get(m.profile_id)?.displayName ?? "unknown",
+      roleName: m.role_name,
+      roleId: m.role_id,
+      isOwner: false,
+      joinedAt: m.joined_at,
+    })),
+  ];
+}
+
+/** Idempotent: accepting an already-accepted request again just re-confirms the same row. */
+export async function addTeamMember(input: {
+  problemId: string;
+  profileId: string;
+  roleName?: string;
+  roleId?: string | null;
+}): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("project_members")
+    .upsert(
+      {
+        problem_id: input.problemId,
+        profile_id: input.profileId,
+        role_name: input.roleName ?? "",
+        role_id: input.roleId ?? null,
+      },
+      { onConflict: "problem_id,profile_id" },
+    );
+  if (error) throw error;
+}
+
+export async function removeTeamMember(problemId: string, profileId: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("project_members")
+    .delete()
+    .eq("problem_id", problemId)
+    .eq("profile_id", profileId);
+  if (error) throw error;
+}
+
+/** Authz helper: may this person post to the project's build log? */
+export async function isTeamMember(problemId: string, profileId: string): Promise<boolean> {
+  const { data, error } = await getAdminClient()
+    .from("project_members")
+    .select("profile_id")
+    .eq("problem_id", problemId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  if (error) throw error;
+  return data !== null;
+}
+
+/** Projects someone has joined but doesn't own - the dashboard's "projects I joined". */
+export async function listProblemsWhereMember(profileId: string): Promise<Problem[]> {
+  const { data: memberRows, error: memberErr } = await getAdminClient()
+    .from("project_members")
+    .select("problem_id")
+    .eq("profile_id", profileId);
+  if (memberErr) throw memberErr;
+
+  const problemIds = (memberRows ?? []).map((m) => m.problem_id as string);
+  if (problemIds.length === 0) return [];
+
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select(PROBLEM_WITH_PROGRESS)
+    .in("id", problemIds)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToProblem(r as ProblemRow));
+}
+
+// --- Project roles ---------------------------------------------------------
+
+interface ProjectRoleRow {
+  id: string;
+  problem_id: string;
+  role_name: string;
+  skills: string[];
+  count_needed: number;
+  description: string;
+  commitment: string;
+  duration: string;
+  open: boolean;
+  created_at: string;
+}
+
+function rowToRole(row: ProjectRoleRow, filled: number): ProjectRole {
+  return {
+    id: row.id,
+    problemId: row.problem_id,
+    roleName: row.role_name,
+    skills: row.skills ?? [],
+    countNeeded: row.count_needed,
+    filled,
+    description: row.description,
+    commitment: row.commitment,
+    duration: row.duration,
+    open: row.open,
+    createdAt: row.created_at,
+  };
+}
+
+/** Roles for one project, with `filled` derived from project_members - never stored, so it can't drift. */
+export async function listProjectRoles(problemId: string): Promise<ProjectRole[]> {
+  const { data: roleRows, error: rolesErr } = await getAdminClient()
+    .from("project_roles")
+    .select("*")
+    .eq("problem_id", problemId)
+    .order("created_at", { ascending: true });
+  if (rolesErr) throw rolesErr;
+  if (!roleRows || roleRows.length === 0) return [];
+
+  const roleIds = roleRows.map((r) => r.id as string);
+  const { data: memberRows, error: membersErr } = await getAdminClient()
+    .from("project_members")
+    .select("role_id")
+    .in("role_id", roleIds);
+  if (membersErr) throw membersErr;
+
+  const filledByRole = new Map<string, number>();
+  for (const row of memberRows ?? []) {
+    const roleId = (row as { role_id: string | null }).role_id;
+    if (!roleId) continue;
+    filledByRole.set(roleId, (filledByRole.get(roleId) ?? 0) + 1);
+  }
+
+  return roleRows.map((r) => rowToRole(r as ProjectRoleRow, filledByRole.get(r.id as string) ?? 0));
+}
+
+export async function getProjectRole(id: string): Promise<ProjectRole | null> {
+  const { data, error } = await getAdminClient()
+    .from("project_roles")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const { count, error: countErr } = await getAdminClient()
+    .from("project_members")
+    .select("*", { count: "exact", head: true })
+    .eq("role_id", id);
+  if (countErr) throw countErr;
+
+  return rowToRole(data as ProjectRoleRow, count ?? 0);
+}
+
+export interface CreateProjectRoleInput {
+  problemId: string;
+  roleName: string;
+  skills: string[];
+  countNeeded: number;
+  description: string;
+  commitment: string;
+  duration: string;
+}
+
+export async function createProjectRole(input: CreateProjectRoleInput): Promise<ProjectRole> {
+  const { data, error } = await getAdminClient()
+    .from("project_roles")
+    .insert({
+      problem_id: input.problemId,
+      role_name: input.roleName,
+      skills: input.skills,
+      count_needed: input.countNeeded,
+      description: input.description,
+      commitment: input.commitment,
+      duration: input.duration,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToRole(data as ProjectRoleRow, 0);
+}
+
+export async function updateProjectRole(
+  id: string,
+  patch: {
+    roleName?: string;
+    skills?: string[];
+    countNeeded?: number;
+    description?: string;
+    commitment?: string;
+    duration?: string;
+    open?: boolean;
+  },
+): Promise<ProjectRole | null> {
+  const { error } = await getAdminClient()
+    .from("project_roles")
+    .update({
+      ...(patch.roleName !== undefined ? { role_name: patch.roleName } : {}),
+      ...(patch.skills !== undefined ? { skills: patch.skills } : {}),
+      ...(patch.countNeeded !== undefined ? { count_needed: patch.countNeeded } : {}),
+      ...(patch.description !== undefined ? { description: patch.description } : {}),
+      ...(patch.commitment !== undefined ? { commitment: patch.commitment } : {}),
+      ...(patch.duration !== undefined ? { duration: patch.duration } : {}),
+      ...(patch.open !== undefined ? { open: patch.open } : {}),
+    })
+    .eq("id", id);
+  if (error) throw error;
+  return getProjectRole(id);
+}
+
+export async function deleteProjectRole(id: string): Promise<void> {
+  const { error } = await getAdminClient().from("project_roles").delete().eq("id", id);
   if (error) throw error;
 }

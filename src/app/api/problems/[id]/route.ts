@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getProblem, updateProblem } from "@/lib/db";
+import { STATUS_FLOW } from "@/lib/status";
 import type { Checklist, Problem } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const STATUSES: Problem["status"][] = ["new", "saved", "building", "shipped", "passed"];
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -44,7 +43,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     feedback?: Problem["feedback"];
     lookingForCollaborators?: boolean;
   } = {};
-  if (typeof body.status === "string" && STATUSES.includes(body.status as Problem["status"])) {
+  if (typeof body.status === "string" && STATUS_FLOW.includes(body.status as Problem["status"])) {
     patch.status = body.status as Problem["status"];
   }
   if (typeof body.notes === "string") {

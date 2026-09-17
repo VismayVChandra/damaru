@@ -213,7 +213,9 @@ function OpenProblemCard({
         </Link>
       </div>
 
-      <p style={{ marginTop: 12, fontSize: 16, fontWeight: 600 }}>{problem.title}</p>
+      <Link href={`/p/${problem.id}`} className="handle-link">
+        <p style={{ marginTop: 12, fontSize: 16, fontWeight: 600 }}>{problem.title}</p>
+      </Link>
       <p className="muted" style={{ marginTop: 6, fontSize: 14 }}>
         {problem.hook}
       </p>
@@ -297,7 +299,13 @@ function IncomingRequestCard({
       </div>
       {request.problemTitle ? (
         <p className="faint" style={{ fontSize: 13, marginTop: 6 }}>
-          wants to join{" "}
+          {request.roleName ? (
+            <>
+              wants to join as <span style={{ color: "var(--text)" }}>{request.roleName}</span> on{" "}
+            </>
+          ) : (
+            "wants to join "
+          )}
           <span style={{ color: "var(--text)" }}>
             {request.problemDomainIcon} {request.problemTitle}
           </span>

@@ -266,7 +266,12 @@ export default function PublicProfilePage() {
         ) : (
           <div className="stack" style={{ gap: 12, marginTop: 14 }}>
             {shipped.map((p) => (
-              <div key={p.id} className="card card-tight card-hover">
+              <Link
+                key={p.id}
+                href={`/p/${p.id}`}
+                className="card card-tight card-hover"
+                style={{ display: "block", color: "inherit", textDecoration: "none" }}
+              >
                 <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
                   <span className="chip chip-static">
                     {p.domainIcon} {p.domainLabel}
@@ -290,7 +295,7 @@ export default function PublicProfilePage() {
                     )}
                   </div>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         )}

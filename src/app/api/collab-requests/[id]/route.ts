@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import {
+  addTeamMember,
+  createNotification,
+  getCollabRequest,
+  getProjectRole,
+  respondToCollabRequest,
+} from "@/lib/db";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { createNotification, getCollabRequest, respondToCollabRequest } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,8 +36,27 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Status must be accepted or declined." }, { status: 400 });
   }
 
+  // A seat can fill between the application and the accept (two applicants,
+  // one owner, one seat) - re-check right before committing to it.
+  if (body.status === "accepted" && existing.roleId) {
+    const role = await getProjectRole(existing.roleId);
+    if (!role || role.filled >= role.countNeeded) {
+      return NextResponse.json({ error: "That role is already filled." }, { status: 409 });
+    }
+  }
+
   const updated = await respondToCollabRequest(id, body.status);
   if (body.status === "accepted" && updated) {
+    // Only a problem-tied request has a project to join - a general
+    // "let's work together" request has nothing to add someone's name to.
+    if (existing.problemId) {
+      await addTeamMember({
+        problemId: existing.problemId,
+        profileId: existing.fromProfileId,
+        roleName: existing.roleName ?? "",
+        roleId: existing.roleId,
+      });
+    }
     await createNotification({
       profileId: existing.fromProfileId,
       type: "collab_accepted",

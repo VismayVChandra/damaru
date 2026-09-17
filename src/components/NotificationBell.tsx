@@ -18,7 +18,13 @@ const LABEL: Record<AppNotification["type"], (n: AppNotification) => string> = {
 
 /** Where clicking a notification should actually take you. */
 function targetHref(n: AppNotification): string {
-  if (n.type === "collab_request" || n.type === "collab_accepted") return "/collaborate";
+  if (n.type === "collab_request") return "/collaborate";
+  // A like, comment, or acceptance is about a specific project - go straight
+  // to it rather than the actor's profile.
+  if (n.problemId && (n.type === "like" || n.type === "comment" || n.type === "collab_accepted")) {
+    return `/p/${n.problemId}`;
+  }
+  if (n.type === "collab_accepted") return "/collaborate";
   return n.actorHandle ? `/u/${n.actorHandle}` : "/collaborate";
 }
 

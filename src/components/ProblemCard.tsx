@@ -2,37 +2,14 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import type { Checklist, Problem, ProgressEntry } from "@/lib/types";
+import type { Checklist, Problem } from "@/lib/types";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
-import { checklistProgress, idleDays, timeAgo } from "@/lib/activity";
+import { checklistProgress, idleDays } from "@/lib/activity";
+import { COLLAB_OPEN_STATUSES, NEXT_LABEL, NEXT_STATUS, STATUS_FLOW, STATUS_LABEL } from "@/lib/status";
+import BuildLog from "@/components/BuildLog";
 import DamaruSpinner from "@/components/DamaruSpinner";
 import Engagement from "@/components/Engagement";
 import { api } from "@/lib/client";
-
-const STATUS_FLOW: Problem["status"][] = ["new", "saved", "building", "shipped", "passed"];
-const STATUS_LABEL: Record<Problem["status"], string> = {
-  new: "New",
-  saved: "Saved",
-  building: "Building",
-  shipped: "Shipped",
-  passed: "Passed",
-};
-
-// The footer used to show every other status as an identical grey button -
-// four equally-weighted options with no indication of which one you'd
-// actually reach for. This is the one obvious next step for each status
-// along the pipeline; everything else stays available but demoted, so
-// "what do I do now" has a single, primary answer instead of a lineup.
-const NEXT_STATUS: Partial<Record<Problem["status"], Problem["status"]>> = {
-  new: "saved",
-  saved: "building",
-  building: "shipped",
-};
-const NEXT_LABEL: Partial<Record<Problem["status"], string>> = {
-  new: "Save it",
-  saved: "Start building",
-  building: "Mark as shipped",
-};
 
 function FitMeter({ fit }: { fit: Problem["fit"] }) {
   const pct = Math.round(fit.score * 100);
@@ -97,6 +74,7 @@ export default function ProblemCard({
   interactive = false,
   canEngage = true,
   startExpanded = false,
+  hideLog = false,
   onStatusChange,
 }: {
   problem: Problem;
@@ -107,6 +85,9 @@ export default function ProblemCard({
    * callers (SwipeTriage's "Read the full brief") that already have their
    * own "show me everything" gesture, so this card shouldn't ask again. */
   startExpanded?: boolean;
+  /** Skip rendering the build log - for the project page, which renders its
+   * own full-density BuildLog below this card instead of a second copy. */
+  hideLog?: boolean;
   /** Told about every status change (including a rollback if the write
    * fails), so a parent holding its own list of problems - the dashboard's
    * momentum stats and filter counts - can stay in sync instead of only
@@ -130,16 +111,12 @@ export default function ProblemCard({
   // Ticking two boxes quickly would otherwise build both updates from the same
   // render's `checklist`, and the second write would drop the first.
   const latestChecklist = useRef<Checklist>(problem.checklist ?? {});
-  const [progress, setProgress] = useState<ProgressEntry[]>(problem.progress ?? []);
   const [notes, setNotes] = useState(problem.notes);
   const [savingNotes, setSavingNotes] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [logging, setLogging] = useState(false);
-  const [logError, setLogError] = useState<string | null>(null);
 
   const done = checklistProgress(problem, checklist);
-  const idle = idleDays({ ...problem, status, progress });
+  const idle = idleDays({ ...problem, status });
 
   async function setFeedback(next: Problem["feedback"]) {
     // Clicking the already-active thumb clears it - there is no third state
@@ -205,25 +182,6 @@ export default function ProblemCard({
     }
   }
 
-  async function logProgress() {
-    const body = draft.trim();
-    if (!body) return;
-    setLogging(true);
-    setLogError(null);
-    try {
-      const { entry } = await api<{ entry: ProgressEntry }>(
-        `/api/problems/${problem.id}/progress`,
-        { method: "POST", body: JSON.stringify({ body }) },
-      );
-      setProgress((prev) => [entry, ...prev]);
-      setDraft("");
-    } catch (e) {
-      setLogError(e instanceof Error ? e.message : "Could not save that.");
-    } finally {
-      setLogging(false);
-    }
-  }
-
   const covered = problem.fit.covered.flatMap((c) => c.via);
   const growing = [...problem.fit.stretch, ...problem.fit.gaps].map((c) => CATEGORY_LABELS[c]);
 
@@ -286,7 +244,9 @@ export default function ProblemCard({
             </span>
           </span>
         </div>
-        <h2 className="problem-title">{problem.title}</h2>
+        <Link href={`/p/${problem.id}`} className="handle-link">
+          <h2 className="problem-title">{problem.title}</h2>
+        </Link>
       </header>
 
       <div className="problem-body">
@@ -458,60 +418,13 @@ export default function ProblemCard({
           </p>
         </details>
 
-        {(interactive || progress.length > 0) && (
-          <div className="block log">
-            <div className="block-label">
-              Progress log {progress.length > 0 && <span className="faint">— {progress.length}</span>}
-            </div>
-
-            {interactive && (
-              <div className="log-compose">
-                <input
-                  className="input"
-                  value={draft}
-                  placeholder="What moved? One line is enough."
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && draft.trim()) logProgress();
-                  }}
-                  disabled={logging}
-                />
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={logProgress}
-                  disabled={logging || !draft.trim()}
-                >
-                  {logging ? (
-                    <>
-                      <DamaruSpinner size={16} /> Saving…
-                    </>
-                  ) : (
-                    "Log it"
-                  )}
-                </button>
-              </div>
-            )}
-
-            {logError && (
-              <p style={{ color: "var(--ember)", fontSize: 13, marginTop: 8 }}>{logError}</p>
-            )}
-
-            {progress.length === 0 ? (
-              <p className="faint" style={{ fontSize: 13.5, marginTop: 10 }}>
-                Nothing logged yet. The middle of a project is where things quietly die — one line a
-                week is enough to notice.
-              </p>
-            ) : (
-              <ol className="log-list">
-                {progress.map((entry) => (
-                  <li key={entry.id}>
-                    <span className="log-when mono">{timeAgo(entry.createdAt)}</span>
-                    <span>{entry.body}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
+        {!hideLog && (interactive || (problem.progress?.length ?? 0) > 0) && (
+          <BuildLog
+            problemId={problem.id}
+            entries={problem.progress ?? []}
+            canPost={interactive}
+            density="compact"
+          />
         )}
 
         <button type="button" className="btn btn-sm" onClick={() => setExpanded(false)}>
@@ -550,7 +463,7 @@ export default function ProblemCard({
           </span>
         )}
         <span className="nav-spacer" />
-        {interactive && (status === "saved" || status === "building") && (
+        {interactive && COLLAB_OPEN_STATUSES.includes(status) && (
           <button
             type="button"
             className={lookingForCollaborators ? "btn btn-sm btn-primary" : "btn btn-sm"}
@@ -570,11 +483,27 @@ export default function ProblemCard({
                 {NEXT_LABEL[status]} &rarr;
               </button>
             )}
-            {STATUS_FLOW.filter((s) => s !== status && s !== NEXT_STATUS[status]).map((s) => (
-              <button key={s} className="btn btn-sm" onClick={() => changeStatus(s)}>
-                {STATUS_LABEL[s]}
-              </button>
-            ))}
+            {/* Everything else along the ladder, demoted behind a select - 7
+                statuses is too many to lay out as equal-weight buttons
+                without drowning out the one actual next step above. */}
+            <select
+              className="select status-move"
+              value=""
+              aria-label="Move to a different status"
+              onChange={(e) => {
+                if (e.target.value) changeStatus(e.target.value as Problem["status"]);
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>
+                Move to…
+              </option>
+              {STATUS_FLOW.filter((s) => s !== status && s !== NEXT_STATUS[status]).map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
             <button className="btn btn-sm" onClick={() => setShowNotes((v) => !v)}>
               {showNotes ? "Hide notes" : notes ? "Notes ✓" : "Notes"}
             </button>

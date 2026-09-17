@@ -261,9 +261,9 @@ function PairCard({ candidate }: { candidate: PairCandidate }) {
         >
           @{candidate.handle}
         </Link>
-        {candidate.building > 0 && (
+        {candidate.active > 0 && (
           <span className="chip chip-static" style={{ color: "var(--warn)", borderColor: "var(--warn)" }}>
-            building {candidate.building}
+            active {candidate.active}
           </span>
         )}
       </div>

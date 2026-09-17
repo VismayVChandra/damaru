@@ -7,7 +7,7 @@ import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import type { Problem } from "@/lib/types";
 
-type Decision = "saved" | "passed";
+type Decision = "idea" | "passed";
 
 interface Decided {
   problem: Problem;
@@ -32,7 +32,7 @@ const TOAST_MS = 4000;
  * default. This triages the batch fast (title, hook, fit) and only expands
  * to the full brief on request, deciding via drag, tap, or arrow keys.
  *
- * Swiping and the buttons write the same statuses ("saved" / "passed") the
+ * Swiping and the buttons write the same statuses ("idea" / "passed") the
  * dashboard already understands - this is a faster gesture for existing
  * state, not a new concept. Reroll is a separate, non-committal action: not
  * a decision, just "this domain, a different execution" - it never touches
@@ -120,7 +120,7 @@ export default function SwipeTriage({
     draggingRef.current = false;
     setFlinging(true);
     paintDrag(
-      decision === "saved" ? FLING_DISTANCE : -FLING_DISTANCE,
+      decision === "idea" ? FLING_DISTANCE : -FLING_DISTANCE,
       "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)",
     );
     setTimeout(() => {
@@ -190,20 +190,20 @@ export default function SwipeTriage({
     draggingRef.current = false;
     const dx = dragXRef.current;
     if (!top) return;
-    if (dx > THRESHOLD) commit(top, "saved");
+    if (dx > THRESHOLD) commit(top, "idea");
     else if (dx < -THRESHOLD) commit(top, "passed");
     else paintDrag(0, "transform 220ms ease");
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!top || expandedId || busy) return;
-    if (e.key === "ArrowRight") commit(top, "saved");
+    if (e.key === "ArrowRight") commit(top, "idea");
     if (e.key === "ArrowLeft") commit(top, "passed");
   }
 
   const toastNode = toast && (
     <div className="triage-toast" role="status">
-      <span>{toast.decision === "saved" ? "Saved." : "Passed."}</span>
+      <span>{toast.decision === "idea" ? "Saved." : "Passed."}</span>
       <button type="button" className="triage-toast-undo" onClick={undo}>
         Undo
       </button>
@@ -211,7 +211,7 @@ export default function SwipeTriage({
   );
 
   if (!top) {
-    const saved = decided.filter((d) => d.decision === "saved").length;
+    const saved = decided.filter((d) => d.decision === "idea").length;
     const passed = decided.filter((d) => d.decision === "passed").length;
     return (
       <>
@@ -325,7 +325,7 @@ export default function SwipeTriage({
         </button>
         <button
           className="btn btn-lg btn-primary triage-save"
-          onClick={() => commit(top, "saved")}
+          onClick={() => commit(top, "idea")}
           disabled={busy}
         >
           ✓ Save

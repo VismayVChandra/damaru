@@ -2,20 +2,13 @@ import Link from "next/link";
 import Engagement from "@/components/Engagement";
 import { attachEngagement, listFeed } from "@/lib/db";
 import { checklistProgress, idleDays, timeAgo } from "@/lib/activity";
+import { ACTIVE_STATUSES, BUILD_LOG_META, STATUS_LABEL } from "@/lib/status";
 import { getCurrentUser } from "@/lib/supabase/server";
 import type { Problem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 type FeedItem = Problem & { handle: string };
-
-const STATUS_LABEL: Record<Problem["status"], string> = {
-  new: "New",
-  saved: "Saved",
-  building: "Building",
-  shipped: "Shipped",
-  passed: "Passed",
-};
 
 function Row({ item, canEngage }: { item: FeedItem; canEngage: boolean }) {
   const done = checklistProgress(item);
@@ -50,7 +43,9 @@ function Row({ item, canEngage }: { item: FeedItem; canEngage: boolean }) {
           </span>
         </div>
 
-        <h3 style={{ marginTop: 10, fontSize: 18 }}>{item.title}</h3>
+        <Link href={`/p/${item.id}`} className="handle-link">
+          <h3 style={{ marginTop: 10, fontSize: 18 }}>{item.title}</h3>
+        </Link>
 
         <div className="row" style={{ marginTop: 10, gap: 14 }}>
           <span className="faint mono" style={{ fontSize: 11.5 }}>
@@ -99,10 +94,13 @@ function Row({ item, canEngage }: { item: FeedItem; canEngage: boolean }) {
         </div>
         {item.progress && item.progress.length > 0 && (
           <div className="block">
-            <div className="block-label">Progress log</div>
+            <div className="block-label">Build log</div>
             <ol className="log-list">
               {item.progress.map((entry) => (
-                <li key={entry.id}>
+                <li key={entry.id} data-kind={entry.kind}>
+                  <span className="log-kind" aria-hidden="true">
+                    {BUILD_LOG_META[entry.kind].icon}
+                  </span>
                   <span className="log-when mono">{timeAgo(entry.createdAt)}</span>
                   <span>{entry.body}</span>
                 </li>
@@ -176,8 +174,8 @@ export default async function BrowsePage() {
   // Shipped work leads. A feed ordered by issue date rewards collecting
   // problems; this one rewards finishing them.
   const shipped = feed.filter((p) => p.status === "shipped");
-  const moving = feed.filter((p) => p.status === "building");
-  const rest = feed.filter((p) => !["shipped", "building"].includes(p.status));
+  const moving = feed.filter((p) => ACTIVE_STATUSES.includes(p.status));
+  const rest = feed.filter((p) => p.status !== "shipped" && !ACTIVE_STATUSES.includes(p.status));
 
   const logged = feed.reduce((n, p) => n + (p.progress?.length ?? 0), 0);
 

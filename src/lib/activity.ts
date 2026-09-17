@@ -1,7 +1,5 @@
 import type { Checklist, Problem } from "@/lib/types";
-
-/** Statuses that represent finished business - staleness is meaningless for these. */
-const SETTLED: Problem["status"][] = ["shipped", "passed"];
+import { SETTLED } from "@/lib/status";
 
 /** Most recent sign of life: a progress entry if there is one, else issue date. */
 export function lastActivityAt(problem: Problem): string {

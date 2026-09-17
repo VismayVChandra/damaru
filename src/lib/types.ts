@@ -195,13 +195,21 @@ export type ProblemPayload = Omit<
   | "likeCount"
   | "commentCount"
   | "likedByMe"
+  | "team"
+  | "roles"
+  | "memberCount"
 >;
 
-/** One line of "what moved", appended to a problem over time. */
+export type BuildLogKind = "progress" | "blocked" | "looking_for_help" | "milestone" | "shipped";
+
+/** One entry in a project's build log - a line of "what moved", typed. */
 export interface ProgressEntry {
   id: string;
   problemId: string;
   body: string;
+  kind: BuildLogKind;
+  imageUrl: string | null;
+  linkUrl: string | null;
   createdAt: string;
 }
 
@@ -228,6 +236,10 @@ export interface CollabRequest {
   problemTitle?: string;
   problemDomainIcon?: string;
   problemDomainLabel?: string;
+  /** Set when this request is an application to a specific published role. */
+  roleId: string | null;
+  /** Present only when roleId is set. */
+  roleName?: string;
 }
 
 /**
@@ -236,6 +248,14 @@ export interface CollabRequest {
  * never change once issued.
  */
 export type Checklist = Record<string, boolean>;
+
+/**
+ * new -> idea -> prototype -> building -> beta -> shipped, or passed
+ * (terminal, reachable from anywhere). "new" is the generator's raw output,
+ * before anyone has committed to it as a project at all - everything from
+ * "idea" on is a real project with a team, not just a saved brief.
+ */
+export type ProjectStatus = "new" | "idea" | "prototype" | "building" | "beta" | "shipped" | "passed";
 
 export interface Problem {
   id: string;
@@ -260,7 +280,7 @@ export interface Problem {
   caveat?: string;
   domainLabel: string;
   domainIcon: string;
-  status: "new" | "saved" | "building" | "shipped" | "passed";
+  status: ProjectStatus;
   notes: string;
   /** Was this friction, for this person, actually a good problem? Their call alone. */
   feedback: "up" | "down" | null;
@@ -275,6 +295,42 @@ export interface Problem {
   likeCount?: number;
   commentCount?: number;
   likedByMe?: boolean;
+  /** Team and open roles - loaded where the view needs them (the project
+   * page), same convention as `progress`. Never part of the stored payload. */
+  team?: TeamMember[];
+  roles?: ProjectRole[];
+  memberCount?: number;
+}
+
+/** One person on a project's team - the owner (synthesised, never a row of
+ * its own) plus anyone whose collab request to join was accepted. */
+export interface TeamMember {
+  profileId: string;
+  handle: string;
+  displayName: string;
+  /** Free text. Empty for the synthesised owner entry, rendered as "Creator". */
+  roleName: string;
+  /** The published role they were accepted into, if any. */
+  roleId: string | null;
+  isOwner: boolean;
+  joinedAt: string;
+}
+
+/** A specific role a project owner is looking to fill. */
+export interface ProjectRole {
+  id: string;
+  problemId: string;
+  roleName: string;
+  skills: string[];
+  countNeeded: number;
+  /** Derived from project_members, never stored. */
+  filled: number;
+  description: string;
+  commitment: string;
+  duration: string;
+  /** The owner's "still accepting applications" switch. */
+  open: boolean;
+  createdAt: string;
 }
 
 export interface ProblemComment {

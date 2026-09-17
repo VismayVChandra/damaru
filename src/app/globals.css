@@ -554,6 +554,16 @@ h3 {
   font-family: var(--sans);
 }
 
+/* The "everything besides the one obvious next step" status menu in a
+   ProblemCard footer - same visual weight as the plain .btn-sm beside it. */
+.status-move {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
 .label {
   display: block;
   font-family: var(--mono);
@@ -975,7 +985,7 @@ h3 {
 
 .log-list li {
   display: grid;
-  grid-template-columns: 74px 1fr;
+  grid-template-columns: 20px 74px 1fr;
   gap: 12px;
   align-items: baseline;
   padding: 8px 0 8px 14px;
@@ -983,11 +993,24 @@ h3 {
   line-height: 1.5;
 }
 
+.log-kind {
+  font-size: 13px;
+  line-height: 1;
+}
+
 .log-when {
   font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;
 }
+
+/* A kind-coloured accent on the timeline's own rail, so blocked/looking-for-
+   help entries are scannable without reading every line. */
+.log-list li[data-kind="progress"] { border-left: 2px solid var(--good); margin-left: -2px; }
+.log-list li[data-kind="blocked"] { border-left: 2px solid var(--ember); margin-left: -2px; }
+.log-list li[data-kind="looking_for_help"] { border-left: 2px solid var(--warn); margin-left: -2px; }
+.log-list li[data-kind="milestone"] { border-left: 2px solid var(--cool); margin-left: -2px; }
+.log-list li[data-kind="shipped"] { border-left: 2px solid var(--good); margin-left: -2px; }
 
 .chip-static.is-idle {
   color: var(--warn);
@@ -1456,8 +1479,10 @@ span.meter {
 }
 
 .status[data-s="new"] { color: var(--text-faint); }
-.status[data-s="saved"] { color: var(--cool); }
+.status[data-s="idea"] { color: var(--cool); }
+.status[data-s="prototype"] { color: var(--cool); opacity: 0.85; }
 .status[data-s="building"] { color: var(--warn); }
+.status[data-s="beta"] { color: var(--ember); }
 .status[data-s="shipped"] { color: var(--good); }
 .status[data-s="passed"] { color: var(--text-faint); opacity: 0.6; }
 
