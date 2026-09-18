@@ -1,12 +1,24 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { STATUS_LABEL } from "@/lib/status";
 import type { Problem } from "@/lib/types";
 
 /**
- * A gallery tile for finished work. Deliberately not ProblemCard - that one is
+ * A gallery tile for someone's work. Deliberately not ProblemCard - that one is
  * a stateful brief-reader with its own controls; this is a static link to the
  * project page, closer in shape to the shipped cards on a profile.
  */
-export default function ShowcaseCard({ problem, handle }: { problem: Problem; handle: string }) {
+export default function ShowcaseCard({
+  problem,
+  subtitle = null,
+  showStatus = false,
+}: {
+  problem: Problem;
+  /** Whose it is, where that isn't already obvious from the page around it. */
+  subtitle?: ReactNode;
+  /** Needed the moment a grid shows anything other than finished work. */
+  showStatus?: boolean;
+}) {
   // Best-effort cover: the newest build-log entry that has an image. There is
   // no dedicated cover column, and `progress` already arrives newest-first.
   const cover = (problem.progress ?? []).find((e) => e.imageUrl)?.imageUrl ?? null;
@@ -27,13 +39,30 @@ export default function ShowcaseCard({ problem, handle }: { problem: Problem; ha
       )}
 
       <div className="showcase-card-body">
-        <span className="chip chip-static">
-          {problem.domainIcon} {problem.domainLabel}
+        <span className="row" style={{ gap: 8 }}>
+          <span className="chip chip-static">
+            {problem.domainIcon} {problem.domainLabel}
+          </span>
+          {showStatus && (
+            <span className="status" data-s={problem.status}>
+              {STATUS_LABEL[problem.status]}
+            </span>
+          )}
+          {problem.inspiredByProblemId && (
+            <span className="chip chip-static" title="Built on someone else's project">
+              ↗ fork
+            </span>
+          )}
         </span>
+
         <p className="showcase-card-title">{problem.title}</p>
-        <p className="faint" style={{ fontSize: 12.5 }}>
-          by @{handle}
-        </p>
+
+        {subtitle && (
+          <p className="faint" style={{ fontSize: 12.5 }}>
+            {subtitle}
+          </p>
+        )}
+
         {((problem.likeCount ?? 0) > 0 || (problem.commentCount ?? 0) > 0) && (
           <div className="row" style={{ gap: 12 }}>
             {(problem.likeCount ?? 0) > 0 && (

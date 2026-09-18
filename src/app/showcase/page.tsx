@@ -28,7 +28,7 @@ export default async function ShowcasePage() {
       ) : (
         <div className="grid-3 section">
           {shipped.map((p) => (
-            <ShowcaseCard key={p.id} problem={p} handle={p.handle} />
+            <ShowcaseCard key={p.id} problem={p} subtitle={`by @${p.handle}`} />
           ))}
         </div>
       )}

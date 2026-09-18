@@ -5,6 +5,7 @@ import { appetiteTarget, categoryStrengths, isDoable, scoreFit } from "./fit";
 import type { DoabilityBar } from "./fit";
 import { compose } from "./compose";
 import { fingerprint, pick, seededRandom } from "./novelty";
+import { MOOD_BY_ID, type Mood } from "@/lib/catalog/moods";
 
 export type GeneratedProblem = Omit<
   Problem,
@@ -53,6 +54,9 @@ export interface GenerateOptions {
   excludeFrictionIds?: Set<string>;
   /** Varying this produces a different draw for the same profile. */
   seed?: string;
+  /** What this person is in the mood to build. A hard filter while it can be
+   * satisfied; dropped with a caveat rather than returning nothing. */
+  moodId?: string;
 }
 
 interface Combo {
@@ -72,7 +76,11 @@ const TIME_TARGET_WEIGHT: Record<Profile["timeBudget"], number> = {
  * grouped by mechanic so a friction can look up its own options. Only pairs the
  * mechanic declares as sensible shipping formats are considered.
  */
-function rankCombosByMechanic(profile: Profile, bar: DoabilityBar): Map<string, Combo[]> {
+function rankCombosByMechanic(
+  profile: Profile,
+  bar: DoabilityBar,
+  mood: Mood | null,
+): Map<string, Combo[]> {
   const strengths = categoryStrengths(profile);
   const target = appetiteTarget(profile.appetite);
   const prefs = new Set(profile.artifactPrefs);
@@ -88,6 +96,10 @@ function rankCombosByMechanic(profile: Profile, bar: DoabilityBar): Map<string, 
 
       const fit = scoreFit(profile, strengths, mechanic, artifact);
       if (!isDoable(fit, bar)) continue;
+      // The mood filters the same space the doability bar does, and for the
+      // same reason: better to hand back nothing here and relax later than to
+      // quietly return something that isn't what was asked for.
+      if (mood && !mood.matches(mechanic, artifact, fit)) continue;
 
       // Closeness to the appetite they asked for dominates.
       let score = 1 - Math.abs(fit.score - target);
@@ -182,8 +194,8 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
   const usedFingerprints = new Set<string>();
 
   /** One pass at a given relaxation, appending whatever it can find. */
-  function draw(relax: Relaxation): void {
-    const byMechanic = rankCombosByMechanic(profile, relax.bar);
+  function draw(relax: Relaxation, mood: Mood | null, caveatOverride?: string): void {
+    const byMechanic = rankCombosByMechanic(profile, relax.bar, mood);
     if (byMechanic.size === 0) return;
 
     const stocked = (d: { id: string }) => (frictions.get(d.id)?.length ?? 0) > 0;
@@ -259,7 +271,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
           twist,
           fit,
           profile,
-          caveat: relax.caveat,
+          caveat: caveatOverride ?? relax.caveat,
         }),
       );
 
@@ -271,10 +283,24 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
     }
   }
 
+  const mood = opts.moodId ? MOOD_BY_ID.get(opts.moodId) ?? null : null;
+
   // Take the strictest bar that produces enough, loosening only as needed.
   for (const relax of RELAXATIONS) {
     if (results.length >= count) break;
-    draw(relax);
+    draw(relax, mood);
+  }
+
+  // Nothing in that mood was left that this person could build. Drop it and
+  // say so on the card rather than coming back empty - same contract as the
+  // relaxation ladder's own caveats, and it keeps a narrow mood from looking
+  // like "you have exhausted the catalogue".
+  if (mood) {
+    const dropped = `Not ${mood.label.toLowerCase()}. Nothing matching that was left that you could build, so this is the closest the catalogue could get.`;
+    for (const relax of RELAXATIONS) {
+      if (results.length >= count) break;
+      draw(relax, null, dropped);
+    }
   }
 
   return results;

@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { SKILL_BY_ID } from "@/lib/catalog/skills";
+import { ACTIVE_STATUSES } from "@/lib/status";
 import DamaruSpinner from "@/components/DamaruSpinner";
+import ShowcaseCard from "@/components/ShowcaseCard";
 import { api } from "@/lib/client";
 import type { Problem, UserSkill } from "@/lib/types";
 
@@ -23,7 +25,12 @@ interface PublicProfile {
 
 interface ProfileBundle {
   profile: PublicProfile;
-  shipped: Problem[];
+  /** Everything they've committed to - idea through shipped. */
+  projects: Problem[];
+  /** Someone else's project, their name on the team. */
+  joined: Problem[];
+  logCount: number;
+  forkCount: number;
   followerCount: number;
   followingCount: number;
   isFollowing: boolean | null;
@@ -108,11 +115,19 @@ export default function PublicProfilePage() {
     );
   }
 
-  const { profile, shipped, followerCount, followingCount, isOwnProfile } = data;
+  const { profile, projects, joined, logCount, forkCount, followerCount, followingCount, isOwnProfile } =
+    data;
   const memberSince = new Date(profile.createdAt).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
   });
+
+  const shipped = projects.filter((p) => p.status === "shipped");
+  // Idea-stage work sits in neither section on purpose: a portfolio of things
+  // not yet started isn't a portfolio.
+  const inProgress = projects.filter((p) => ACTIVE_STATUSES.includes(p.status));
+  // Strongest first - a portfolio should show depth, not just surface area.
+  const skills = [...profile.skills].sort((a, b) => b.level - a.level);
 
   return (
     <main className="shell shell-narrow">
@@ -212,6 +227,28 @@ export default function PublicProfilePage() {
           </div>
         </div>
         <div>
+          <div className="stat">{inProgress.length}</div>
+          <div className="faint" style={{ fontSize: 13 }}>
+            in progress
+          </div>
+        </div>
+        <div>
+          <div className="stat">{logCount}</div>
+          <div className="faint" style={{ fontSize: 13 }}>
+            {logCount === 1 ? "build note" : "build notes"}
+          </div>
+        </div>
+        {/* Only worth a slot once it has happened - a zero here on every
+            profile would read as a scoreboard nobody asked for. */}
+        {forkCount > 0 && (
+          <div>
+            <div className="stat">{forkCount}</div>
+            <div className="faint" style={{ fontSize: 13 }}>
+              built on their work
+            </div>
+          </div>
+        )}
+        <div>
           <div className="stat">{followerCount}</div>
           <div className="faint" style={{ fontSize: 13 }}>
             {followerCount === 1 ? "follower" : "followers"}
@@ -225,14 +262,19 @@ export default function PublicProfilePage() {
         </div>
       </div>
 
-      {profile.skills.length > 0 && (
+      {skills.length > 0 && (
         <section className="section">
           <h3>Skills</h3>
           <div className="chip-wrap" style={{ marginTop: 12 }}>
-            {profile.skills.map((s) => {
+            {skills.map((s) => {
               const skill = SKILL_BY_ID.get(s.id);
               return skill ? (
-                <span key={s.id} className="chip chip-static">
+                <span
+                  key={s.id}
+                  className="chip chip-static"
+                  data-level={s.level}
+                  title={["", "still learning", "comfortable", "strong"][s.level]}
+                >
                   {skill.label}
                 </span>
               ) : null;
@@ -264,42 +306,41 @@ export default function PublicProfilePage() {
             Nothing shipped yet.
           </p>
         ) : (
-          <div className="stack" style={{ gap: 12, marginTop: 14 }}>
+          <div className="grid-3" style={{ marginTop: 14 }}>
             {shipped.map((p) => (
-              <Link
-                key={p.id}
-                href={`/p/${p.id}`}
-                className="card card-tight card-hover"
-                style={{ display: "block", color: "inherit", textDecoration: "none" }}
-              >
-                <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
-                  <span className="chip chip-static">
-                    {p.domainIcon} {p.domainLabel}
-                  </span>
-                  <span className="faint mono" style={{ fontSize: 11.5 }}>
-                    fit {Math.round(p.fit.score * 100)}%
-                  </span>
-                </div>
-                <p style={{ marginTop: 10, fontSize: 15, fontWeight: 600 }}>{p.title}</p>
-                {((p.likeCount ?? 0) > 0 || (p.commentCount ?? 0) > 0) && (
-                  <div className="row" style={{ marginTop: 8, gap: 12 }}>
-                    {(p.likeCount ?? 0) > 0 && (
-                      <span className="faint mono" style={{ fontSize: 11.5 }}>
-                        ♥ {p.likeCount}
-                      </span>
-                    )}
-                    {(p.commentCount ?? 0) > 0 && (
-                      <span className="faint mono" style={{ fontSize: 11.5 }}>
-                        💬 {p.commentCount}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </Link>
+              <ShowcaseCard key={p.id} problem={p} />
             ))}
           </div>
         )}
       </section>
+
+      {inProgress.length > 0 && (
+        <section className="section">
+          <h3>In progress</h3>
+          <p className="faint" style={{ fontSize: 13.5, marginTop: 4 }}>
+            Being built right now.
+          </p>
+          <div className="grid-3" style={{ marginTop: 14 }}>
+            {inProgress.map((p) => (
+              <ShowcaseCard key={p.id} problem={p} showStatus />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {joined.length > 0 && (
+        <section className="section">
+          <h3>On the team</h3>
+          <p className="faint" style={{ fontSize: 13.5, marginTop: 4 }}>
+            Someone else&apos;s project, their name on the team.
+          </p>
+          <div className="grid-3" style={{ marginTop: 14 }}>
+            {joined.map((p) => (
+              <ShowcaseCard key={p.id} problem={p} showStatus />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

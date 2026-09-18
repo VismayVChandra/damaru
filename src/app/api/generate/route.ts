@@ -8,6 +8,7 @@ import {
   listIssuedFrictionIds,
 } from "@/lib/db";
 import { generateProblems, indexFrictions } from "@/lib/engine";
+import { MOOD_BY_ID } from "@/lib/catalog/moods";
 import type { Problem } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
 
   const requested = Number(body.count);
   const count = Number.isFinite(requested) ? Math.max(1, Math.min(5, Math.trunc(requested))) : 3;
+  // An unrecognised mood is ignored rather than rejected - same posture as
+  // the rest of this body, and the engine falls back to an unmooded draw.
+  const moodId = typeof body.mood === "string" && MOOD_BY_ID.has(body.mood) ? body.mood : undefined;
 
   const [issued, catalogue, seenFrictions] = await Promise.all([
     allFingerprints(),
@@ -49,6 +53,7 @@ export async function POST(request: Request) {
       excludeFingerprints: issued,
       excludeFrictionIds: seenFrictions,
       seed: `${profile.id}:${Date.now()}:${pass}:${Math.random()}`,
+      moodId,
     });
 
     if (drafts.length === 0) break;

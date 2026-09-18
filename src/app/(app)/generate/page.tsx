@@ -6,6 +6,7 @@ import SwipeTriage from "@/components/SwipeTriage";
 import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
+import { MOODS } from "@/lib/catalog/moods";
 import type { Problem, Profile } from "@/lib/types";
 
 const WAITING_LINES = [
@@ -22,6 +23,8 @@ export default function GeneratePage() {
   // reconcile a fresh problem list into an in-progress triage session.
   const [batch, setBatch] = useState(0);
   const [count, setCount] = useState(3);
+  // Null is a real answer - "anything" is the default, not a missing choice.
+  const [mood, setMood] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [line, setLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export default function GeneratePage() {
     try {
       const { problems } = await api<{ problems: Problem[] }>("/api/generate", {
         method: "POST",
-        body: JSON.stringify({ count }),
+        body: JSON.stringify({ count, mood }),
       });
       setProblems(problems);
       setBatch((b) => b + 1);
@@ -134,6 +137,32 @@ export default function GeneratePage() {
               )}
             </button>
           </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <span className="label" style={{ margin: 0 }}>
+            In the mood for
+          </span>
+          <div className="chip-wrap" style={{ marginTop: 8 }}>
+            {MOODS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="chip"
+                data-on={mood === m.id ? "true" : "false"}
+                // Clicking the active one clears it - "anything" is the default.
+                onClick={() => setMood((cur) => (cur === m.id ? null : m.id))}
+                disabled={loading}
+                title={m.hint}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="faint" style={{ fontSize: 12.5, marginTop: 8 }}>
+            Optional. If nothing in that mood is left that you could build, you&apos;ll get the
+            closest thing and the card will say so.
+          </p>
         </div>
 
         <div className="chip-wrap" style={{ marginTop: 16 }}>

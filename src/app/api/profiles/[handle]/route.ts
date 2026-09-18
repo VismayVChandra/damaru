@@ -4,10 +4,13 @@ import {
   attachEngagement,
   countFollowers,
   countFollowing,
+  countForksOfProfile,
   getProfileByHandle,
   isFollowing,
   listProblemsForProfile,
+  listProblemsWhereMember,
 } from "@/lib/db";
+import { COMMITTED_STATUSES } from "@/lib/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,17 +29,30 @@ export async function GET(_request: Request, ctx: { params: Promise<{ handle: st
   const viewer = await getCurrentUser();
   const isOwnProfile = viewer?.id === profile.id;
 
-  const [followerCount, followingCount, allProblems, viewerIsFollowing] = await Promise.all([
-    countFollowers(profile.id),
-    countFollowing(profile.id),
-    listProblemsForProfile(profile.id),
-    viewer && !isOwnProfile ? isFollowing(viewer.id, profile.id) : Promise.resolve(null),
+  const [followerCount, followingCount, allProblems, memberOf, forkCount, viewerIsFollowing] =
+    await Promise.all([
+      countFollowers(profile.id),
+      countFollowing(profile.id),
+      listProblemsForProfile(profile.id),
+      listProblemsWhereMember(profile.id),
+      countForksOfProfile(profile.id),
+      viewer && !isOwnProfile ? isFollowing(viewer.id, profile.id) : Promise.resolve(null),
+    ]);
+
+  // Only work they've actually committed to is anyone else's business: a
+  // "new" draw hasn't been kept yet, and a "passed" one is a decision not to
+  // build, neither of which belongs on a public portfolio.
+  const isPublic = (p: { status: (typeof COMMITTED_STATUSES)[number] | string }) =>
+    COMMITTED_STATUSES.includes(p.status as (typeof COMMITTED_STATUSES)[number]);
+
+  const [projects, joined] = await Promise.all([
+    attachEngagement(allProblems.filter(isPublic), viewer?.id ?? null),
+    attachEngagement(memberOf.filter(isPublic), viewer?.id ?? null),
   ]);
 
-  const shipped = await attachEngagement(
-    allProblems.filter((p) => p.status === "shipped"),
-    viewer?.id ?? null,
-  );
+  // Derived from the progress entries listProblemsForProfile already embeds -
+  // same one-liner the dashboard uses, no extra query.
+  const logCount = allProblems.reduce((n, p) => n + (p.progress?.length ?? 0), 0);
 
   return NextResponse.json({
     profile: {
@@ -50,7 +66,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ handle: st
       appetite: profile.appetite,
       createdAt: profile.createdAt,
     },
-    shipped,
+    projects,
+    joined,
+    logCount,
+    forkCount,
     followerCount,
     followingCount,
     isFollowing: viewerIsFollowing,

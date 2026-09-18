@@ -561,6 +561,28 @@ export async function hasForked(sourceProblemId: string, forkingProfileId: strin
   return (count ?? 0) > 0;
 }
 
+/** How many projects other people started from this person's work - the
+ * payoff for shipping something good enough that someone wanted their own. */
+export async function countForksOfProfile(profileId: string): Promise<number> {
+  // Two steps rather than a self-join: PostgREST needs an explicit constraint
+  // name to embed a self-referencing FK, and the id list is club-scale.
+  const { data: mine, error: mineErr } = await getAdminClient()
+    .from("problems")
+    .select("id")
+    .eq("profile_id", profileId);
+  if (mineErr) throw mineErr;
+
+  const ids = (mine ?? []).map((r) => (r as { id: string }).id);
+  if (ids.length === 0) return 0;
+
+  const { count, error } = await getAdminClient()
+    .from("problems")
+    .select("id", { count: "exact", head: true })
+    .in("inspired_by_problem_id", ids);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Their existing fork of this project, so a repeat attempt can be handed a
  * link to it rather than a bare error. */
 export async function getFork(sourceProblemId: string, forkingProfileId: string): Promise<Problem | null> {

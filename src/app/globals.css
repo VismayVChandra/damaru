@@ -1880,3 +1880,10 @@ span.meter {
   font-weight: 600;
   line-height: 1.35;
 }
+
+/* A portfolio should show depth, not just surface area: what someone is
+   strong at reads differently from what they are still learning. */
+.chip-static[data-level="3"] {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
