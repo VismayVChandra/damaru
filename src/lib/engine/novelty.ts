@@ -30,6 +30,30 @@ export function fingerprint(dna: ProblemDNA): string {
   return `${a}${b}`;
 }
 
+/**
+ * Storage key for a fork's `problems.fingerprint` column - deliberately NOT
+ * the seed for its prose. A fork pins its source's exact DNA, so
+ * `fingerprint(dna)` would collide with the source's own row and be rejected
+ * by the unique index. Mixing the forking profile in keeps the row insertable
+ * while `compose()` keeps running on the unmodified DNA, so a fork reads
+ * identically to its source - which is the whole point of pinning it.
+ */
+export function forkFingerprint(dna: ProblemDNA, forkingProfileId: string): string {
+  const key = [
+    dna.domainId,
+    dna.actor,
+    dna.friction,
+    dna.mechanicId,
+    dna.artifactId,
+    dna.twistId,
+    "fork",
+    forkingProfileId,
+  ].join("|");
+  const a = hash32(key).toString(16).padStart(8, "0");
+  const b = hash32(`salt::${key}::salt`).toString(16).padStart(8, "0");
+  return `${a}${b}`;
+}
+
 /** Deterministic PRNG so the same DNA always renders the same prose. */
 export function seededRandom(seed: string): () => number {
   let state = hash32(seed) || 1;

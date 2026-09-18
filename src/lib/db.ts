@@ -212,6 +212,7 @@ interface ProblemRow {
   feedback: Problem["feedback"];
   looking_for_collaborators: boolean | null;
   friction_id: string | null;
+  inspired_by_problem_id: string | null;
   created_at: string;
   /** Present only on queries that embed the relation. */
   progress_entries?: ProgressRow[];
@@ -235,6 +236,7 @@ function rowToProblem(row: ProblemRow): Problem {
     id: row.id,
     fingerprint: row.fingerprint,
     profileId: row.profile_id,
+    inspiredByProblemId: row.inspired_by_problem_id ?? null,
     status: row.status,
     notes: row.notes,
     // Rows written before the checklist column existed come back null.
@@ -297,6 +299,7 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
     id,
     fingerprint,
     profileId,
+    inspiredByProblemId,
     payload,
     status,
     notes,
@@ -320,6 +323,7 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
       looking_for_collaborators: lookingForCollaborators,
       domain_id: domainId,
       friction_id: frictionId,
+      inspired_by_problem_id: inspiredByProblemId ?? null,
       fit,
       difficulty,
       created_at: createdAt,
@@ -340,6 +344,7 @@ function packProblem(problem: Problem) {
     id,
     fingerprint,
     profileId,
+    inspiredByProblemId,
     status,
     notes,
     checklist,
@@ -361,6 +366,7 @@ function packProblem(problem: Problem) {
     id,
     fingerprint,
     profileId,
+    inspiredByProblemId,
     status,
     notes,
     lookingForCollaborators,
@@ -521,6 +527,52 @@ export async function listFollowingFeed(viewerId: string, limit = 40): Promise<(
     const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
     return { ...rowToProblem(row as ProblemRow), handle: profiles?.handle ?? "unknown" };
   });
+}
+
+/** Shipped work, newest first, with the owner's handle - the Showcase gallery.
+ * Embeds progress entries so a card can pull a cover image from the build log
+ * without a second round trip. */
+export async function listShippedProblems(limit = 60): Promise<(Problem & { handle: string })[]> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select("*, profiles!problems_profile_id_fkey(handle), progress_entries(*)")
+    .eq("status", "shipped")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
+    return { ...rowToProblem(row as ProblemRow), handle: profiles?.handle ?? "unknown" };
+  });
+}
+
+/** Has this person already forked this project? Checked before inserting a
+ * fork, not after: `insertProblem`'s "unique violation means draw again"
+ * contract is meaningless for a fork, which has nothing to redraw. */
+export async function hasForked(sourceProblemId: string, forkingProfileId: string): Promise<boolean> {
+  const { count, error } = await getAdminClient()
+    .from("problems")
+    .select("id", { count: "exact", head: true })
+    .eq("inspired_by_problem_id", sourceProblemId)
+    .eq("profile_id", forkingProfileId);
+
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+/** Their existing fork of this project, so a repeat attempt can be handed a
+ * link to it rather than a bare error. */
+export async function getFork(sourceProblemId: string, forkingProfileId: string): Promise<Problem | null> {
+  const { data, error } = await getAdminClient()
+    .from("problems")
+    .select(PROBLEM_WITH_PROGRESS)
+    .eq("inspired_by_problem_id", sourceProblemId)
+    .eq("profile_id", forkingProfileId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? rowToProblem(data as ProblemRow) : null;
 }
 
 /**

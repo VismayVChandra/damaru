@@ -110,6 +110,12 @@ alter table problems
   add column feedback text
     check (feedback is null or feedback in ('up', 'down'));
 
+-- Lineage for forked ("inspired by") projects. `on delete set null`, not
+-- cascade: a fork is its own independent project, not a row owned by its
+-- source, so it survives the source being deleted and just loses the backlink.
+alter table problems
+  add column inspired_by_problem_id uuid references problems(id) on delete set null;
+
 create index idx_frictions_status on frictions(status);
 create index idx_frictions_submitter on frictions(submitted_by);
 create unique index idx_frictions_unique on frictions(domain_id, lower(btrim(text)));
@@ -119,6 +125,7 @@ create index idx_problems_created on problems(created_at desc);
 create index idx_progress_problem on progress_entries(problem_id, created_at desc);
 create index idx_problems_friction on problems(friction_id);
 create index idx_problems_status on problems(status);
+create index idx_problems_inspired_by on problems(inspired_by_problem_id);
 
 -- Public profile pages' follow graph. Counts are meant to be visible to
 -- everyone, which is why the read policy below is unrestricted.

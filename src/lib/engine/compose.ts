@@ -126,6 +126,7 @@ export function compose(
 ): Omit<
   Problem,
   | "id"
+  | "inspiredByProblemId"
   | "status"
   | "notes"
   | "checklist"

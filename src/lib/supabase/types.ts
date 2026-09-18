@@ -94,6 +94,7 @@ export interface Database {
           looking_for_collaborators: boolean;
           domain_id: string;
           friction_id: string | null;
+          inspired_by_problem_id: string | null;
           fit: number;
           difficulty: number;
           created_at: string;
@@ -110,6 +111,7 @@ export interface Database {
           looking_for_collaborators?: boolean;
           domain_id: string;
           friction_id?: string | null;
+          inspired_by_problem_id?: string | null;
           fit: number;
           difficulty: number;
           created_at: string;
@@ -134,6 +136,13 @@ export interface Database {
             columns: ["friction_id"];
             isOneToOne: false;
             referencedRelation: "frictions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "problems_inspired_by_problem_id_fkey";
+            columns: ["inspired_by_problem_id"];
+            isOneToOne: false;
+            referencedRelation: "problems";
             referencedColumns: ["id"];
           },
         ];

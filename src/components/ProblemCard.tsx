@@ -75,6 +75,8 @@ export default function ProblemCard({
   canEngage = true,
   startExpanded = false,
   hideLog = false,
+  canFork = false,
+  inspiredByTitle = null,
   onStatusChange,
 }: {
   problem: Problem;
@@ -88,6 +90,12 @@ export default function ProblemCard({
   /** Skip rendering the build log - for the project page, which renders its
    * own full-density BuildLog below this card instead of a second copy. */
   hideLog?: boolean;
+  /** Whether this viewer can start their own version of this project. The
+   * caller works this out (signed in, not the owner, shipped) so the card
+   * stays a renderer and never needs to know who is looking at it. */
+  canFork?: boolean;
+  /** Title of the project this one was forked from, when it is a fork. */
+  inspiredByTitle?: string | null;
   /** Told about every status change (including a rollback if the write
    * fails), so a parent holding its own list of problems - the dashboard's
    * momentum stats and filter counts - can stay in sync instead of only
@@ -114,6 +122,8 @@ export default function ProblemCard({
   const [notes, setNotes] = useState(problem.notes);
   const [savingNotes, setSavingNotes] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [forking, setForking] = useState(false);
+  const [forkError, setForkError] = useState<string | null>(null);
 
   const done = checklistProgress(problem, checklist);
   const idle = idleDays({ ...problem, status });
@@ -146,6 +156,23 @@ export default function ProblemCard({
     } catch {
       setStatus(previous);
       onStatusChange?.(problem.id, previous);
+    }
+  }
+
+  async function fork() {
+    setForking(true);
+    setForkError(null);
+    try {
+      const { problem: created } = await api<{ problem: Problem }>(
+        `/api/problems/${problem.id}/fork`,
+        { method: "POST" },
+      );
+      // A full navigation, not a router push: the new project is the person's
+      // own, and every bit of state on this page belongs to someone else's.
+      window.location.href = `/p/${created.id}`;
+    } catch (e) {
+      setForkError(e instanceof Error ? e.message : "Could not fork this.");
+      setForking(false);
     }
   }
 
@@ -221,8 +248,20 @@ export default function ProblemCard({
     <article className={interactive ? "problem card-hover" : "problem"}>
       <header className="problem-head">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <span className="chip chip-static">
-            {problem.domainIcon} {problem.domainLabel}
+          <span className="row" style={{ gap: 8 }}>
+            <span className="chip chip-static">
+              {problem.domainIcon} {problem.domainLabel}
+            </span>
+            {inspiredByTitle && problem.inspiredByProblemId && (
+              <Link
+                href={`/p/${problem.inspiredByProblemId}`}
+                className="chip chip-static"
+                style={{ textDecoration: "none" }}
+                title="The project this one was forked from"
+              >
+                ↗ inspired by {inspiredByTitle}
+              </Link>
+            )}
           </span>
           <span className="row" style={{ gap: 8 }}>
             {lookingForCollaborators && (
@@ -435,7 +474,14 @@ export default function ProblemCard({
       </div>
 
       <footer className="problem-foot">
-        <span className="fingerprint" title="Globally unique — no one else has this problem">
+        <span
+          className="fingerprint"
+          title={
+            problem.inspiredByProblemId
+              ? "A fork — same brief as the project it came from, issued again on purpose"
+              : "Globally unique — no one else has this problem"
+          }
+        >
           #{problem.fingerprint}
         </span>
         {interactive && (
@@ -463,6 +509,26 @@ export default function ProblemCard({
           </span>
         )}
         <span className="nav-spacer" />
+        {forkError && (
+          <span style={{ color: "var(--ember)", fontSize: 12.5 }}>{forkError}</span>
+        )}
+        {canFork && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={fork}
+            disabled={forking}
+            title="Start your own version of this project"
+          >
+            {forking ? (
+              <>
+                <DamaruSpinner size={14} /> Forking…
+              </>
+            ) : (
+              "Build your own version"
+            )}
+          </button>
+        )}
         {interactive && COLLAB_OPEN_STATUSES.includes(status) && (
           <button
             type="button"

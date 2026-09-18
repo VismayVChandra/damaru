@@ -62,6 +62,7 @@ export async function POST(request: Request) {
         checklist: {},
         feedback: null,
         lookingForCollaborators: false,
+        inspiredByProblemId: null,
         createdAt: new Date().toISOString(),
       };
       // A concurrent request may have taken this fingerprint between the read

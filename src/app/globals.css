@@ -1840,3 +1840,43 @@ span.meter {
   background: var(--ember-soft);
   opacity: 0.9;
 }
+
+/* --- Showcase ------------------------------------------------------------ */
+
+.showcase-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Covers are arbitrary pasted URLs of unknown dimensions, so the box is
+   fixed and the image is cropped to it rather than the other way round. */
+.showcase-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--panel-2);
+}
+
+.showcase-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.showcase-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px 16px;
+}
+
+.showcase-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}

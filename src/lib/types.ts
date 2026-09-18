@@ -185,6 +185,7 @@ export type ProblemPayload = Omit<
   | "id"
   | "fingerprint"
   | "profileId"
+  | "inspiredByProblemId"
   | "status"
   | "notes"
   | "checklist"
@@ -262,6 +263,8 @@ export interface Problem {
   /** Global uniqueness key derived from the DNA. */
   fingerprint: string;
   profileId: string;
+  /** The project this one was forked from, if any. Null for an original draw. */
+  inspiredByProblemId: string | null;
   title: string;
   hook: string;
   statement: string;

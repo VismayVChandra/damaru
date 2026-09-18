@@ -35,15 +35,19 @@ export default async function ProjectPage({ params }: { params: Promise<Params> 
   const problem = await getProblem(id);
   if (!problem) notFound();
 
-  const [team, roles, [withEngagement]] = await Promise.all([
+  const [team, roles, [withEngagement], inspiredBy] = await Promise.all([
     listTeamMembers(id),
     listProjectRoles(id),
     attachEngagement([problem], viewer?.id ?? null),
+    problem.inspiredByProblemId ? getProblem(problem.inspiredByProblemId) : null,
   ]);
 
   const isOwner = viewer?.id === problem.profileId;
   const isMember = team.some((m) => m.profileId === viewer?.id);
   const canPost = isOwner || isMember;
+  // Forking is for finished work: a shipped project is the one you can read
+  // the whole build log of before deciding to take it on yourself.
+  const canFork = Boolean(viewer) && !isOwner && problem.status === "shipped";
 
   return (
     <main className="shell">
@@ -53,6 +57,8 @@ export default async function ProjectPage({ params }: { params: Promise<Params> 
         canEngage={Boolean(viewer)}
         startExpanded
         hideLog
+        canFork={canFork}
+        inspiredByTitle={inspiredBy?.title ?? null}
       />
 
       <TeamSection problemId={id} members={team} isOwner={isOwner} viewerId={viewer?.id ?? null} />

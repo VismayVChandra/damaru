@@ -77,6 +77,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
       checklist: {},
       feedback: null,
       lookingForCollaborators: false,
+      inspiredByProblemId: null,
       createdAt: new Date().toISOString(),
     };
     // A concurrent request may have taken this fingerprint between the read

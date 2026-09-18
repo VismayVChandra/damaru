@@ -9,6 +9,7 @@ import { fingerprint, pick, seededRandom } from "./novelty";
 export type GeneratedProblem = Omit<
   Problem,
   | "id"
+  | "inspiredByProblemId"
   | "status"
   | "notes"
   | "checklist"
