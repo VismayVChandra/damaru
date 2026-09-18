@@ -60,6 +60,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     kind,
     imageUrl: imageUrl ?? null,
     linkUrl: linkUrl ?? null,
+    // Owner or team member - whoever it actually was.
+    profileId: user.id,
   });
   return NextResponse.json({ entry });
 }

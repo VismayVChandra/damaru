@@ -14,6 +14,7 @@ const LABEL: Record<AppNotification["type"], (n: AppNotification) => string> = {
     n.problemTitle ? `wants to collaborate on "${n.problemTitle}"` : "wants to work together",
   collab_accepted: (n) =>
     n.problemTitle ? `accepted your request on "${n.problemTitle}"` : "accepted your collaboration request",
+  fork: (n) => (n.problemTitle ? `forked "${n.problemTitle}"` : "forked your project"),
 };
 
 /** Where clicking a notification should actually take you. */
@@ -21,7 +22,10 @@ function targetHref(n: AppNotification): string {
   if (n.type === "collab_request") return "/collaborate";
   // A like, comment, or acceptance is about a specific project - go straight
   // to it rather than the actor's profile.
-  if (n.problemId && (n.type === "like" || n.type === "comment" || n.type === "collab_accepted")) {
+  if (
+    n.problemId &&
+    (n.type === "like" || n.type === "comment" || n.type === "collab_accepted" || n.type === "fork")
+  ) {
     return `/p/${n.problemId}`;
   }
   if (n.type === "collab_accepted") return "/collaborate";

@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getFork, getProblem, getProfileById, hasForked, insertProblem } from "@/lib/db";
+import {
+  createNotification,
+  getFork,
+  getProblem,
+  getProfileById,
+  hasForked,
+  insertProblem,
+} from "@/lib/db";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { ARTIFACT_BY_ID, MECHANIC_BY_ID, TWIST_BY_ID } from "@/lib/catalog/blocks";
 import { compose } from "@/lib/engine/compose";
@@ -82,12 +89,34 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     feedback: null,
     lookingForCollaborators: false,
     inspiredByProblemId: id,
+    // Born at "idea" rather than moved there - there is no transition to date.
+    statusChangedAt: null,
     createdAt: new Date().toISOString(),
   };
 
   const stored = await insertProblem(candidate);
   if (!stored) {
     return NextResponse.json({ error: "Could not fork this right now." }, { status: 409 });
+  }
+
+  // Best-effort, unlike every other notify call site. The fork row is already
+  // committed here, so letting this throw would 500 a request that succeeded -
+  // and the retry would hit hasForked's 409, leaving someone with a fork they
+  // can't reach and an error they can't clear.
+  //
+  // The fork's id, not the source's: a fork's title is byte-identical to its
+  // source (it pins the DNA, and compose() is pure), so the copy reads the
+  // same either way - but this lands the owner on the new thing rather than on
+  // their own project, which they have already seen.
+  try {
+    await createNotification({
+      profileId: source.profileId,
+      type: "fork",
+      actorProfileId: user.id,
+      problemId: stored.id,
+    });
+  } catch {
+    /* the fork is what mattered */
   }
 
   return NextResponse.json({ problem: stored });

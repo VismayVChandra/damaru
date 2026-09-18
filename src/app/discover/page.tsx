@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import DiscoverExplorer from "@/components/DiscoverExplorer";
 import WeeklyDigest from "@/components/WeeklyDigest";
 import {
   attachEngagement,
   countFollowing,
+  getProjectSignals,
   getRecentEngagementCounts,
   listFeed,
   listFollowingActivity,
@@ -57,6 +59,11 @@ export default async function DiscoverPage() {
   const recentCounts = await getRecentEngagementCounts(feed.map((p) => p.id), sinceISO);
   const radar = rankRadar(feed, recentCounts, sinceISO).slice(0, 6);
 
+  // A plain record rather than a Map: it crosses into a client component, and
+  // every other prop in this codebase that does is plain data.
+  const signals = await getProjectSignals(feed.map((p) => ({ id: p.id, createdAt: p.createdAt })));
+  const signalsRecord = Object.fromEntries(signals);
+
   let digest = null;
   if (viewer) {
     const followingCount = await countFollowing(viewer.id);
@@ -100,7 +107,12 @@ export default async function DiscoverPage() {
         )}
       </section>
 
-      <DiscoverExplorer feed={feed} canEngage={Boolean(viewer)} />
+      {/* DiscoverExplorer reads the filters out of the URL, which needs a
+          boundary. force-dynamic already sidesteps the prerender error, but
+          relying on that is how it breaks later. */}
+      <Suspense fallback={null}>
+        <DiscoverExplorer feed={feed} signals={signalsRecord} />
+      </Suspense>
     </main>
   );
 }

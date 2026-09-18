@@ -16,6 +16,7 @@ export type GeneratedProblem = Omit<
   | "checklist"
   | "feedback"
   | "lookingForCollaborators"
+  | "statusChangedAt"
   | "progress"
   | "createdAt"
 >;

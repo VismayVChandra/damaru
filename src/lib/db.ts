@@ -198,6 +198,7 @@ interface ProgressRow {
   kind: BuildLogKind;
   image_url: string | null;
   link_url: string | null;
+  profile_id: string | null;
   created_at: string;
 }
 
@@ -213,6 +214,7 @@ interface ProblemRow {
   looking_for_collaborators: boolean | null;
   friction_id: string | null;
   inspired_by_problem_id: string | null;
+  status_changed_at: string | null;
   created_at: string;
   /** Present only on queries that embed the relation. */
   progress_entries?: ProgressRow[];
@@ -226,6 +228,7 @@ function rowToProgress(row: ProgressRow): ProgressEntry {
     kind: row.kind ?? "progress",
     imageUrl: row.image_url,
     linkUrl: row.link_url,
+    profileId: row.profile_id ?? null,
     createdAt: row.created_at,
   };
 }
@@ -243,6 +246,7 @@ function rowToProblem(row: ProblemRow): Problem {
     checklist: row.checklist ?? {},
     feedback: row.feedback ?? null,
     lookingForCollaborators: row.looking_for_collaborators ?? false,
+    statusChangedAt: row.status_changed_at ?? null,
     ...(row.progress_entries
       ? {
           progress: [...row.progress_entries]
@@ -300,6 +304,7 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
     fingerprint,
     profileId,
     inspiredByProblemId,
+    statusChangedAt,
     payload,
     status,
     notes,
@@ -324,6 +329,8 @@ export async function insertProblem(problem: Problem): Promise<Problem | null> {
       domain_id: domainId,
       friction_id: frictionId,
       inspired_by_problem_id: inspiredByProblemId ?? null,
+      // A fresh draw has not moved anywhere yet.
+      status_changed_at: statusChangedAt ?? null,
       fit,
       difficulty,
       created_at: createdAt,
@@ -350,6 +357,7 @@ function packProblem(problem: Problem) {
     checklist,
     feedback,
     lookingForCollaborators,
+    statusChangedAt,
     progress,
     createdAt,
     dna,
@@ -370,6 +378,7 @@ function packProblem(problem: Problem) {
     status,
     notes,
     lookingForCollaborators,
+    statusChangedAt,
     createdAt,
     domainId: dna.domainId,
     frictionId: dna.frictionId,
@@ -422,6 +431,13 @@ export async function updateProblem(
   const existing = await getProblem(id);
   if (!existing) return null;
 
+  // Only stamp the clock when the status genuinely moves. `!== undefined`
+  // rather than truthiness, and a conditional spread rather than writing the
+  // old value back, so ticking a checklist box or saving a note never reads as
+  // "started building this". The guard lives here rather than in the route so
+  // every caller inherits it.
+  const statusChanged = patch.status !== undefined && patch.status !== existing.status;
+
   const { error } = await getAdminClient()
     .from("problems")
     .update({
@@ -430,6 +446,7 @@ export async function updateProblem(
       checklist: patch.checklist ?? existing.checklist,
       feedback: "feedback" in patch ? patch.feedback : existing.feedback,
       looking_for_collaborators: patch.lookingForCollaborators ?? existing.lookingForCollaborators,
+      ...(statusChanged ? { status_changed_at: new Date().toISOString() } : {}),
     })
     .eq("id", id);
 
@@ -442,7 +459,15 @@ export async function updateProblem(
 /** Append one entry to a project's build log. */
 export async function addProgressEntry(
   problemId: string,
-  input: { body: string; kind?: BuildLogKind; imageUrl?: string | null; linkUrl?: string | null },
+  input: {
+    body: string;
+    kind?: BuildLogKind;
+    imageUrl?: string | null;
+    linkUrl?: string | null;
+    /** Whoever is posting - the owner or any team member, since 009 widened
+     * this beyond the owner and left no record of which of them it was. */
+    profileId?: string | null;
+  },
 ): Promise<ProgressEntry> {
   const { data, error } = await getAdminClient()
     .from("progress_entries")
@@ -452,6 +477,7 @@ export async function addProgressEntry(
       kind: input.kind ?? "progress",
       image_url: input.imageUrl ?? null,
       link_url: input.linkUrl ?? null,
+      profile_id: input.profileId ?? null,
     })
     .select()
     .single();
@@ -529,6 +555,122 @@ export async function listFollowingFeed(viewerId: string, limit = 40): Promise<(
   });
 }
 
+/** The follow graph as a bare id list. Extracted so callers that only need
+ * "who does this person follow" don't hand-roll the two-step lookup again. */
+export async function listFollowingIds(viewerId: string): Promise<string[]> {
+  const { data, error } = await getAdminClient()
+    .from("follows")
+    .select("following_id")
+    .eq("follower_id", viewerId);
+
+  if (error) throw error;
+  return (data ?? []).map((r) => (r as { following_id: string }).following_id);
+}
+
+/** What a card needs to say about a project beyond the project itself. */
+export interface ProjectSignals {
+  /** Owner plus accepted members. The owner is never a project_members row,
+   * so every count starts at 1 - same synthesis listTeamMembers does. */
+  teamSize: number;
+  /** Still flagged open AND not yet full. */
+  openRoles: number;
+  seatsOpen: number;
+  roleNames: string[];
+  /** Free text, as the owner typed it. */
+  roleSkills: string[];
+  buildLogCount: number;
+  latestLog: ProgressEntry | null;
+  /** The newest build log if it beats the project's own creation, else that. */
+  lastActivityAt: string;
+}
+
+/**
+ * Team size, open roles and build-log state for many projects in three
+ * queries, instead of listTeamMembers + listProjectRoles per project - which
+ * a feed of a dozen cards would turn into thirty round trips. Same batched
+ * `.in()` + JS Map shape as countActiveByProfile.
+ *
+ * `filled` comes from the same project_members scan that yields `teamSize`,
+ * so the two can never disagree. The returned Map has an entry for every id
+ * asked for, so callers never handle undefined.
+ */
+export async function getProjectSignals(
+  problems: Pick<Problem, "id" | "createdAt">[],
+): Promise<Map<string, ProjectSignals>> {
+  const map = new Map<string, ProjectSignals>();
+  for (const p of problems) {
+    map.set(p.id, {
+      teamSize: 1,
+      openRoles: 0,
+      seatsOpen: 0,
+      roleNames: [],
+      roleSkills: [],
+      buildLogCount: 0,
+      latestLog: null,
+      lastActivityAt: p.createdAt,
+    });
+  }
+  const ids = problems.map((p) => p.id);
+  if (ids.length === 0) return map;
+
+  const [membersRes, rolesRes, logsRes] = await Promise.all([
+    getAdminClient().from("project_members").select("problem_id, profile_id, role_id").in("problem_id", ids),
+    getAdminClient()
+      .from("project_roles")
+      .select("id, problem_id, role_name, skills, count_needed, open")
+      .in("problem_id", ids)
+      .eq("open", true),
+    getAdminClient()
+      .from("progress_entries")
+      .select("*")
+      .in("problem_id", ids)
+      .order("created_at", { ascending: false }),
+  ]);
+  if (membersRes.error) throw membersRes.error;
+  if (rolesRes.error) throw rolesRes.error;
+  if (logsRes.error) throw logsRes.error;
+
+  const filledByRole = new Map<string, number>();
+  for (const row of membersRes.data ?? []) {
+    const r = row as { problem_id: string; role_id: string | null };
+    const entry = map.get(r.problem_id);
+    if (entry) entry.teamSize++;
+    if (r.role_id) filledByRole.set(r.role_id, (filledByRole.get(r.role_id) ?? 0) + 1);
+  }
+
+  for (const row of rolesRes.data ?? []) {
+    const r = row as {
+      id: string;
+      problem_id: string;
+      role_name: string;
+      skills: string[] | null;
+      count_needed: number;
+    };
+    const entry = map.get(r.problem_id);
+    if (!entry) continue;
+    const seats = r.count_needed - (filledByRole.get(r.id) ?? 0);
+    if (seats <= 0) continue;
+    entry.openRoles++;
+    entry.seatsOpen += seats;
+    entry.roleNames.push(r.role_name);
+    for (const s of r.skills ?? []) if (!entry.roleSkills.includes(s)) entry.roleSkills.push(s);
+  }
+
+  for (const row of logsRes.data ?? []) {
+    const r = row as ProgressRow;
+    const entry = map.get(r.problem_id);
+    if (!entry) continue;
+    entry.buildLogCount++;
+    // Newest first, so the first one seen for a project is its latest.
+    if (!entry.latestLog) {
+      entry.latestLog = rowToProgress(r);
+      if (r.created_at > entry.lastActivityAt) entry.lastActivityAt = r.created_at;
+    }
+  }
+
+  return map;
+}
+
 /** Shipped work, newest first, with the owner's handle - the Showcase gallery.
  * Embeds progress entries so a card can pull a cover image from the build log
  * without a second round trip. */
@@ -595,6 +737,125 @@ export async function getFork(sourceProblemId: string, forkingProfileId: string)
 
   if (error) throw error;
   return data ? rowToProblem(data as ProblemRow) : null;
+}
+
+/** A project as an activity item needs it - enough to name and link it, never
+ * the whole payload. */
+export interface ActivityProject {
+  id: string;
+  title: string;
+  status: Problem["status"];
+  domainIcon: string;
+  domainLabel: string;
+  ownerProfileId: string;
+  ownerHandle: string;
+  inspiredByProblemId: string | null;
+  createdAt: string;
+  statusChangedAt: string | null;
+}
+
+export interface ActivitySources {
+  /** Every committed project, keyed by id - the spine every event hangs off. */
+  projects: Map<string, ActivityProject>;
+  progress: (ProgressEntry & { authorHandle?: string })[];
+  roles: { id: string; problemId: string; roleName: string; createdAt: string }[];
+  joins: { problemId: string; profileId: string; handle: string; roleName: string; joinedAt: string }[];
+}
+
+/**
+ * Raw material for the club-wide activity feed, deliberately un-merged: the
+ * merge, the collapse rules and the ordering are pure logic and live in
+ * src/lib/activity-feed.ts, the same way rankRadar lives in discover.ts rather
+ * than here.
+ *
+ * Four queries in parallel, plus one handle lookup - the cost is independent
+ * of how long the feed is and how many projects exist. The projects query is
+ * deliberately unlimited and untimed: something that happened today can belong
+ * to a project started a year ago, so ordering and limiting it would silently
+ * drop the very events the window is meant to catch. Club-scale, same order of
+ * cost /discover already pays.
+ */
+export async function listClubActivitySources(sinceISO: string): Promise<ActivitySources> {
+  const admin = getAdminClient();
+
+  const [problemsRes, progressRes, rolesRes, joinsRes] = await Promise.all([
+    admin
+      .from("problems")
+      .select("*, profiles!problems_profile_id_fkey(handle)")
+      .in("status", COMMITTED_STATUSES),
+    admin.from("progress_entries").select("*").gte("created_at", sinceISO).order("created_at", { ascending: false }),
+    admin.from("project_roles").select("id, problem_id, role_name, created_at").gte("created_at", sinceISO),
+    admin.from("project_members").select("problem_id, profile_id, role_name, joined_at").gte("joined_at", sinceISO),
+  ]);
+  if (problemsRes.error) throw problemsRes.error;
+  if (progressRes.error) throw progressRes.error;
+  if (rolesRes.error) throw rolesRes.error;
+  if (joinsRes.error) throw joinsRes.error;
+
+  const projects = new Map<string, ActivityProject>();
+  for (const r of problemsRes.data ?? []) {
+    const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
+    const problem = rowToProblem(row as ProblemRow);
+    projects.set(problem.id, {
+      id: problem.id,
+      title: problem.title,
+      status: problem.status,
+      domainIcon: problem.domainIcon,
+      domainLabel: problem.domainLabel,
+      ownerProfileId: problem.profileId,
+      ownerHandle: profiles?.handle ?? "unknown",
+      inspiredByProblemId: problem.inspiredByProblemId,
+      createdAt: problem.createdAt,
+      statusChangedAt: problem.statusChangedAt,
+    });
+  }
+
+  // Everyone who needs naming: build-log authors and joiners. One lookup.
+  const progressRows = (progressRes.data ?? []) as ProgressRow[];
+  const joinRows = (joinsRes.data ?? []) as {
+    problem_id: string;
+    profile_id: string;
+    role_name: string | null;
+    joined_at: string;
+  }[];
+  const peopleIds = [
+    ...new Set([
+      ...progressRows.map((r) => r.profile_id).filter((id): id is string => Boolean(id)),
+      ...joinRows.map((r) => r.profile_id),
+    ]),
+  ];
+  const handleById = new Map<string, string>();
+  if (peopleIds.length > 0) {
+    const { data, error } = await admin.from("profiles").select("id, handle").in("id", peopleIds);
+    if (error) throw error;
+    for (const p of data ?? []) {
+      const row = p as { id: string; handle: string };
+      handleById.set(row.id, row.handle);
+    }
+  }
+
+  return {
+    projects,
+    progress: progressRows.map((r) => ({
+      ...rowToProgress(r),
+      authorHandle: r.profile_id ? handleById.get(r.profile_id) : undefined,
+    })),
+    roles: rolesRes.data
+      ? (rolesRes.data as { id: string; problem_id: string; role_name: string; created_at: string }[]).map((r) => ({
+          id: r.id,
+          problemId: r.problem_id,
+          roleName: r.role_name,
+          createdAt: r.created_at,
+        }))
+      : [],
+    joins: joinRows.map((r) => ({
+      problemId: r.problem_id,
+      profileId: r.profile_id,
+      handle: handleById.get(r.profile_id) ?? "unknown",
+      roleName: r.role_name ?? "",
+      joinedAt: r.joined_at,
+    })),
+  };
 }
 
 /**

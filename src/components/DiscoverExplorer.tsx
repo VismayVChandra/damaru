@@ -1,24 +1,81 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import ProblemCard from "@/components/ProblemCard";
+import { useMemo } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import ProjectCard from "@/components/ProjectCard";
 import { DOMAINS } from "@/lib/catalog/domains";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import { problemSkillCategories } from "@/lib/discover";
+import type { ProjectSignals } from "@/lib/db";
 import type { Problem, SkillCategory } from "@/lib/types";
 
 type FeedItem = Problem & { handle: string };
 
-function toggle<T>(set: Set<T>, value: T): Set<T> {
-  const next = new Set(set);
-  if (next.has(value)) next.delete(value);
-  else next.add(value);
-  return next;
+const DOMAIN_IDS = new Set(DOMAINS.map((d) => d.id));
+const CATEGORY_IDS = new Set(Object.keys(CATEGORY_LABELS) as SkillCategory[]);
+
+/** Anything unrecognised is dropped rather than matched, so a stale or
+ * hand-edited ?domain=banana behaves exactly like no filter at all. */
+function readSet<T extends string>(sp: URLSearchParams, key: string, allowed: Set<T>): Set<T> {
+  const out = new Set<T>();
+  for (const raw of sp.getAll(key)) {
+    const value = raw.toLowerCase() as T;
+    if (allowed.has(value)) out.add(value);
+  }
+  return out;
 }
 
-export default function DiscoverExplorer({ feed, canEngage }: { feed: FeedItem[]; canEngage: boolean }) {
-  const [domains, setDomains] = useState<Set<string>>(new Set());
-  const [categories, setCategories] = useState<Set<SkillCategory>>(new Set());
+export default function DiscoverExplorer({
+  feed,
+  signals,
+}: {
+  feed: FeedItem[];
+  signals: Record<string, ProjectSignals>;
+}) {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // The URL is the only state. Nothing to keep in sync, so refresh, a pasted
+  // link and back/forward all land on the same view for free.
+  const domains = useMemo(
+    () => readSet(new URLSearchParams(searchParams.toString()), "domain", DOMAIN_IDS),
+    [searchParams],
+  );
+  const categories = useMemo(
+    () => readSet(new URLSearchParams(searchParams.toString()), "skill", CATEGORY_IDS),
+    [searchParams],
+  );
+
+  /**
+   * Native history rather than router.replace: /discover is force-dynamic, so
+   * a router navigation would re-run the whole Server Component - and refetch
+   * 300 projects - on every chip click, for data the browser already holds.
+   *
+   * pushState rather than replaceState, so Back undoes the last filter instead
+   * of leaving the page. It costs an entry per chip, which is the usual bargain
+   * for faceted search.
+   */
+  function apply(nextDomains: Set<string>, nextCategories: Set<SkillCategory>) {
+    const qs = new URLSearchParams();
+    for (const d of nextDomains) qs.append("domain", d);
+    for (const c of nextCategories) qs.append("skill", c);
+    const query = qs.toString();
+    window.history.pushState(null, "", query ? `${pathname}?${query}` : pathname);
+  }
+
+  function toggleDomain(id: string) {
+    const next = new Set(domains);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    apply(next, categories);
+  }
+
+  function toggleCategory(id: SkillCategory) {
+    const next = new Set(categories);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    apply(domains, next);
+  }
 
   const matches = useMemo(() => {
     return feed.filter((p) => {
@@ -51,7 +108,7 @@ export default function DiscoverExplorer({ feed, canEngage }: { feed: FeedItem[]
               type="button"
               className="chip"
               data-on={domains.has(d.id) ? "true" : "false"}
-              onClick={() => setDomains((prev) => toggle(prev, d.id))}
+              onClick={() => toggleDomain(d.id)}
             >
               {d.icon} {d.label}
             </button>
@@ -68,7 +125,7 @@ export default function DiscoverExplorer({ feed, canEngage }: { feed: FeedItem[]
               type="button"
               className="chip"
               data-on={categories.has(id) ? "true" : "false"}
-              onClick={() => setCategories((prev) => toggle(prev, id))}
+              onClick={() => toggleCategory(id)}
             >
               {label}
             </button>
@@ -81,10 +138,7 @@ export default function DiscoverExplorer({ feed, canEngage }: { feed: FeedItem[]
           type="button"
           className="btn btn-sm"
           style={{ marginTop: 14 }}
-          onClick={() => {
-            setDomains(new Set());
-            setCategories(new Set());
-          }}
+          onClick={() => apply(new Set(), new Set())}
         >
           Clear filters
         </button>
@@ -97,9 +151,7 @@ export default function DiscoverExplorer({ feed, canEngage }: { feed: FeedItem[]
       ) : (
         <div className="grid-3" style={{ marginTop: 18 }}>
           {matches.map((p) => (
-            <div key={p.id} className="card-hover">
-              <ProblemCard problem={p} interactive={false} canEngage={canEngage} />
-            </div>
+            <ProjectCard key={p.id} problem={p} signals={signals[p.id] ?? null} />
           ))}
         </div>
       )}

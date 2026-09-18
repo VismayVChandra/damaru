@@ -132,6 +132,7 @@ export function compose(
   | "checklist"
   | "feedback"
   | "lookingForCollaborators"
+  | "statusChangedAt"
   | "progress"
   | "createdAt"
 > {

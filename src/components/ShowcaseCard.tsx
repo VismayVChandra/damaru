@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { coverImage } from "@/lib/activity";
 import { STATUS_LABEL } from "@/lib/status";
 import type { Problem } from "@/lib/types";
 
@@ -19,9 +20,7 @@ export default function ShowcaseCard({
   /** Needed the moment a grid shows anything other than finished work. */
   showStatus?: boolean;
 }) {
-  // Best-effort cover: the newest build-log entry that has an image. There is
-  // no dedicated cover column, and `progress` already arrives newest-first.
-  const cover = (problem.progress ?? []).find((e) => e.imageUrl)?.imageUrl ?? null;
+  const cover = coverImage(problem);
 
   return (
     <Link

@@ -985,7 +985,7 @@ h3 {
 
 .log-list li {
   display: grid;
-  grid-template-columns: 20px 74px 1fr;
+  grid-template-columns: 20px 84px 1fr;
   gap: 12px;
   align-items: baseline;
   padding: 8px 0 8px 14px;
@@ -1886,4 +1886,123 @@ span.meter {
 .chip-static[data-level="3"] {
   color: var(--text);
   border-color: var(--border-strong);
+}
+
+/* --- Activity feed -------------------------------------------------------- */
+
+/* The rail's dot is green because it was only ever used for shipped work. A
+   feed carrying five kinds of event needs five tones - the same ones
+   .log-list li[data-kind] uses, so a build-log line reads the same here as on
+   a project page. The bare .feed-row above stays the default, so /browse's
+   shipped rail is untouched. */
+.feed-rail .feed-row[data-tone="good"]::before {
+  background: var(--good);
+}
+.feed-rail .feed-row[data-tone="ember"]::before {
+  background: var(--ember);
+}
+.feed-rail .feed-row[data-tone="warn"]::before {
+  background: var(--warn);
+}
+.feed-rail .feed-row[data-tone="cool"]::before {
+  background: var(--cool);
+}
+
+/* One line of "who did what, when" - same icon / body / time rhythm as
+   .log-list, so the two never look like different systems. */
+.activity-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.activity-when {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.activity-said {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
+@media (max-width: 560px) {
+  .activity-row {
+    grid-template-columns: 20px 1fr;
+  }
+  .activity-when {
+    grid-column: 2;
+  }
+}
+
+/* --- Project card --------------------------------------------------------- */
+
+.project-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Whole-card click without wrapping the card in one <a>, which would make the
+   nested @handle link and the call to action invalid. ShowcaseCard can wrap
+   because its tile has no nested controls; this one can't. */
+.project-card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.project-card > *,
+.project-card a:not(.project-card-link),
+.project-card button {
+  position: relative;
+  z-index: 1;
+}
+
+.project-signals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.project-signals .sep {
+  color: var(--text-faint);
+}
+
+/* Moved in the last day - the one thing on this line worth a colour. */
+.project-signals .is-live {
+  color: var(--good);
+}
+
+/* Pushed to the far edge and faint: visible, never the headline. */
+.project-signals .is-social {
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.chip-static.match-reason {
+  color: var(--cool);
+  border-color: var(--cool);
+}
+
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

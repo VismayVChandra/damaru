@@ -69,6 +69,9 @@ create table progress_entries (
   -- the API route, since an unvalidated value here would be stored XSS.
   image_url  text,
   link_url   text,
+  -- Who wrote it. Nullable: entries predating this column fall back to the
+  -- project's owner, and an entry outlives its author leaving.
+  profile_id uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now(),
 
   constraint body_not_empty check (length(trim(body)) > 0),
@@ -116,6 +119,13 @@ alter table problems
 alter table problems
   add column inspired_by_problem_id uuid references problems(id) on delete set null;
 
+-- When the status last actually changed, so the activity feed can say "started
+-- building this" with a real time on it. Null means it has never moved since
+-- this column existed - never backfilled from created_at, which would assert a
+-- transition that did not happen.
+alter table problems
+  add column status_changed_at timestamptz;
+
 create index idx_frictions_status on frictions(status);
 create index idx_frictions_submitter on frictions(submitted_by);
 create unique index idx_frictions_unique on frictions(domain_id, lower(btrim(text)));
@@ -126,6 +136,9 @@ create index idx_progress_problem on progress_entries(problem_id, created_at des
 create index idx_problems_friction on problems(friction_id);
 create index idx_problems_status on problems(status);
 create index idx_problems_inspired_by on problems(inspired_by_problem_id);
+create index idx_problems_status_changed on problems(status_changed_at desc) where status_changed_at is not null;
+create index idx_progress_created on progress_entries(created_at desc);
+create index idx_progress_profile on progress_entries(profile_id);
 
 -- Public profile pages' follow graph. Counts are meant to be visible to
 -- everyone, which is why the read policy below is unrestricted.
@@ -251,7 +264,7 @@ create table notifications (
   read               boolean not null default false,
   created_at         timestamptz not null default now(),
 
-  constraint notif_type_valid check (type in ('follow', 'like', 'comment', 'collab_request', 'collab_accepted'))
+  constraint notif_type_valid check (type in ('follow', 'like', 'comment', 'collab_request', 'collab_accepted', 'fork'))
 );
 
 create index idx_notif_profile on notifications(profile_id, created_at desc);

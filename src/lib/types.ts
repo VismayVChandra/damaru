@@ -191,6 +191,7 @@ export type ProblemPayload = Omit<
   | "checklist"
   | "feedback"
   | "lookingForCollaborators"
+  | "statusChangedAt"
   | "progress"
   | "createdAt"
   | "likeCount"
@@ -211,6 +212,12 @@ export interface ProgressEntry {
   kind: BuildLogKind;
   imageUrl: string | null;
   linkUrl: string | null;
+  /** Who wrote it. Null for entries written before this was recorded - those
+   * fall back to the project's owner wherever authorship is shown. */
+  profileId: string | null;
+  /** Hydrated where a view needs to name the author, same convention as
+   * `CollabRequest.roleName`. */
+  authorHandle?: string;
   createdAt: string;
 }
 
@@ -289,6 +296,10 @@ export interface Problem {
   feedback: "up" | "down" | null;
   /** Flagged by the owner as open for someone else to join. */
   lookingForCollaborators: boolean;
+  /** When the status last actually changed. Null for anything that has never
+   * moved since this was recorded - the activity feed emits nothing for those
+   * rather than inventing a time. */
+  statusChangedAt: string | null;
   checklist: Checklist;
   /** Loaded alongside the problem where the view needs it; newest first. */
   progress?: ProgressEntry[];
@@ -345,7 +356,13 @@ export interface ProblemComment {
   createdAt: string;
 }
 
-export type NotificationType = "follow" | "like" | "comment" | "collab_request" | "collab_accepted";
+export type NotificationType =
+  | "follow"
+  | "like"
+  | "comment"
+  | "collab_request"
+  | "collab_accepted"
+  | "fork";
 
 /**
  * One piece of activity aimed at the signed-in person - the thing that

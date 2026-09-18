@@ -95,6 +95,7 @@ export interface Database {
           domain_id: string;
           friction_id: string | null;
           inspired_by_problem_id: string | null;
+          status_changed_at: string | null;
           fit: number;
           difficulty: number;
           created_at: string;
@@ -112,6 +113,7 @@ export interface Database {
           domain_id: string;
           friction_id?: string | null;
           inspired_by_problem_id?: string | null;
+          status_changed_at?: string | null;
           fit: number;
           difficulty: number;
           created_at: string;
@@ -122,6 +124,7 @@ export interface Database {
           checklist?: Checklist;
           feedback?: Problem["feedback"];
           looking_for_collaborators?: boolean;
+          status_changed_at?: string | null;
         };
         Relationships: [
           {
@@ -439,6 +442,7 @@ export interface Database {
           kind: BuildLogKind;
           image_url: string | null;
           link_url: string | null;
+          profile_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -447,6 +451,7 @@ export interface Database {
           kind?: BuildLogKind;
           image_url?: string | null;
           link_url?: string | null;
+          profile_id?: string | null;
         };
         Update: {
           body?: string;
@@ -457,6 +462,13 @@ export interface Database {
             columns: ["problem_id"];
             isOneToOne: false;
             referencedRelation: "problems";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "progress_entries_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
