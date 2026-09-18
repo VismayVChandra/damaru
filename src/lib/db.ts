@@ -523,6 +523,76 @@ export async function listFollowingFeed(viewerId: string, limit = 40): Promise<(
   });
 }
 
+/**
+ * Weekly Digest source data: from people the viewer follows, in the last N
+ * days - new (kept) problems, plus the build-log entries logged against any
+ * of their committed problems (not just ones started this week - progress on
+ * an older project is still "what happened this week").
+ */
+export async function listFollowingActivity(
+  viewerId: string,
+  sinceISO: string,
+): Promise<{
+  newProblems: (Problem & { handle: string })[];
+  progressEntries: (ProgressEntry & {
+    problemId: string;
+    problemTitle: string;
+    handle: string;
+    domainIcon: string;
+    domainLabel: string;
+  })[];
+}> {
+  const { data: followRows, error: followErr } = await getAdminClient()
+    .from("follows")
+    .select("following_id")
+    .eq("follower_id", viewerId);
+  if (followErr) throw followErr;
+
+  const followingIds = (followRows ?? []).map((r) => (r as { following_id: string }).following_id);
+  if (followingIds.length === 0) return { newProblems: [], progressEntries: [] };
+
+  const { data: problemRows, error: probErr } = await getAdminClient()
+    .from("problems")
+    .select("*, profiles!problems_profile_id_fkey(handle)")
+    .in("profile_id", followingIds)
+    .in("status", COMMITTED_STATUSES)
+    .order("created_at", { ascending: false });
+  if (probErr) throw probErr;
+
+  const allProblems = (problemRows ?? []).map((r) => {
+    const { profiles, ...row } = r as ProblemRow & { profiles: { handle: string } | null };
+    return { ...rowToProblem(row as ProblemRow), handle: profiles?.handle ?? "unknown" };
+  });
+  const newProblems = allProblems.filter((p) => p.createdAt >= sinceISO);
+
+  const problemIds = allProblems.map((p) => p.id);
+  const { data: progressRows, error: progErr } = problemIds.length
+    ? await getAdminClient()
+        .from("progress_entries")
+        .select("*")
+        .in("problem_id", problemIds)
+        .gte("created_at", sinceISO)
+        .order("created_at", { ascending: false })
+    : { data: [] as ProgressRow[], error: null };
+  if (progErr) throw progErr;
+
+  const metaById = new Map(allProblems.map((p) => [p.id, p]));
+  const progressEntries = (progressRows ?? []).map((r) => {
+    const row = r as ProgressRow;
+    const meta = metaById.get(row.problem_id)!;
+    return {
+      ...rowToProgress(row),
+      problemId: row.problem_id,
+      problemTitle: meta.title,
+      handle: meta.handle,
+      domainIcon: meta.domainIcon,
+      domainLabel: meta.domainLabel,
+    };
+  });
+
+  return { newProblems, progressEntries };
+}
+
 // --- Frictions -----------------------------------------------------------
 
 interface FrictionRow {
@@ -1028,6 +1098,31 @@ async function getEngagementFor(problemIds: string[], viewerId: string | null): 
 export async function attachEngagement<T extends Problem>(problems: T[], viewerId: string | null): Promise<T[]> {
   const map = await getEngagementFor(problems.map((p) => p.id), viewerId);
   return problems.map((p) => ({ ...p, ...(map.get(p.id) ?? { likeCount: 0, commentCount: 0, likedByMe: false }) }));
+}
+
+/**
+ * Likes and comments in the last N days, per problem - the raw signal behind
+ * Project Radar. Deliberately separate from getEngagementFor: that one is
+ * viewer-relative (likedByMe) and all-time; this one is neither.
+ */
+export async function getRecentEngagementCounts(
+  problemIds: string[],
+  sinceISO: string,
+): Promise<Map<string, { likes: number; comments: number }>> {
+  const map = new Map<string, { likes: number; comments: number }>();
+  for (const id of problemIds) map.set(id, { likes: 0, comments: 0 });
+  if (problemIds.length === 0) return map;
+
+  const [likesRes, commentsRes] = await Promise.all([
+    getAdminClient().from("problem_likes").select("problem_id").in("problem_id", problemIds).gte("created_at", sinceISO),
+    getAdminClient().from("problem_comments").select("problem_id").in("problem_id", problemIds).gte("created_at", sinceISO),
+  ]);
+  if (likesRes.error) throw likesRes.error;
+  if (commentsRes.error) throw commentsRes.error;
+
+  for (const row of likesRes.data ?? []) map.get((row as { problem_id: string }).problem_id)!.likes++;
+  for (const row of commentsRes.data ?? []) map.get((row as { problem_id: string }).problem_id)!.comments++;
+  return map;
 }
 
 // --- Notifications -----------------------------------------------------------
