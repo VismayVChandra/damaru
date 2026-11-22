@@ -2,10 +2,13 @@
 
 A website where people upload their skills and interests, and get back a project
 problem statement that is **specific to them**, **doable with what they know**, and
-**never issued to anyone else** — then a small social layer around it: follow people,
-see what they're building in a home feed, cheer it on or comment, and ask to join in.
+**never issued to anyone else** — then a club around it: an activity feed of what
+is actually moving, a showcase of finished work you can fork, pairing suggestions,
+open roles, build logs, and a friction catalogue the members write themselves.
 
 Next.js + TypeScript, Supabase (Postgres + auth), deployable to Vercel for free.
+No LLM anywhere in it — the generator is a deterministic combinatorial engine,
+which is also why it is free to run.
 
 ---
 
@@ -39,11 +42,11 @@ wait ~2 min for it to provision.
 
 **2. Run the schema.** In the project, left sidebar → **SQL Editor** → **New query** →
 paste the entire contents of [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
-Then run [`supabase/migrations/002b_seed_frictions.sql`](supabase/migrations/002b_seed_frictions.sql)
-the same way, which loads the 144 starting frictions into the catalogue.
-
-An existing project instead runs the numbered files in `supabase/migrations/` in
-order, once each.
+Then run every file in `supabase/migrations/` in numbered order, once each —
+`001` through `012`. Three of them are catalogue content rather than structure
+(`002b`, `006` and `012` seed 256 frictions between them); the rest are schema
+deltas. A project that already has the schema runs only the migrations it has
+not seen yet.
 
 **3. Get your credentials.** **Project Settings → API**. Copy the **Project URL**, the
 **anon / public** key, and the **service_role** key (click reveal).
@@ -109,9 +112,79 @@ generator ends up proposing a playable game to fix a timetable clash — coheren
 grammar, nonsense content. The bindings are the difference.
 
 The landing page counts the valid space from the live catalogue
-(`combinationSpace()`), so the figure moves the moment a friction is accepted —
-it starts at 40,992 with the 144 seeded frictions, and every new one adds
-roughly two hundred.
+(`combinationSpace()`), so the figure moves the moment a friction is accepted.
+With the 256 seeded frictions and the catalogue as it stands — 39 mechanics,
+18 artifacts, 28 twists across 18 domains — that is just over 108,000 valid
+combinations, and every accepted friction adds a few hundred more.
+
+### Variety, and why it needed fixing
+
+The first version of this was repetitive in a way the uniqueness guarantee
+hid. `fingerprint()` hashes the *DNA tuple*, so two briefs can be honestly
+"never issued to anyone else" and still open with the same seven words. Across
+the first 67 problems issued to real members, 78% of titles shared an opening
+phrase with another, 52% said "Build a physical device", and 100% ended with
+the same four success criteria. Members said it plainly: the problems were
+repetitive and not that interesting to build.
+
+The cause was **catalogue shape, not the sampler**. This club is hardware-
+skewed, and `hardware` was required by exactly one mechanic against `data`'s
+fourteen. A hardware-only profile had four buildable combinations out of 109,
+and the gap between its best and second-best was larger than every scoring
+term in the engine combined — so no amount of novelty pressure could have
+moved it. Depth had to come first:
+
+- **The catalogue grew where the skills actually are.** 30 → 39 mechanics,
+  14 → 18 artifacts, 18 → 28 twists, 160 → 256 frictions. Ten of the new
+  mechanics are hardware, mechanical or electrical. `Artifact.kind`
+  (`software` / `physical` / `either`) lets moods and twists target by kind
+  instead of enumerating ids.
+- **Interests became a weighting, not a gate.** `INTEREST_SHARE = 0.6` — in-
+  interest domains split 60% of the probability, everything else splits 40%,
+  so roughly two briefs in three stay in-interest and the rest are a genuine
+  change of scene. A *share* rather than a ratio, because a fixed 3:1 gives a
+  3-interest member and a 6-interest member wildly different odds.
+- **Novelty pressure, personal and club-wide.** `getDnaUsage()` tallies which
+  mechanics and artifacts have been issued, and ranking penalises the
+  well-worn ones — personal use weighted roughly twice club use, since
+  "repetitive" is about what *one person* was handed. Deliberately smaller
+  than the fit gap: novelty must never dethrone doability.
+- **Appetite became a percentile** of what this person can actually reach,
+  not an absolute score (see below).
+- **The prose stopped being one voice.** Five title shapes, 12 hook openers,
+  stake lines chosen by `artifact.kind`, and success criteria that are now
+  five lines with three derived from the problem's own DNA via
+  `Mechanic.proof` / `Twist.proof`.
+
+Measured on a hardware-only profile over 60 simulated briefs: frictions drawn
+4 → 36, distinct mechanics 3 → 13, "device" share 72% → 33%, distinct title
+openings ~3% → 87%, and usable moods 3/5 → 5/5.
+
+**Composed prose is frozen into `payload` at insert**, so none of this
+rewrites existing problems — the 67 already issued keep their exact text, and
+the improvement only shows on new draws. That is also why the database can
+only ever tell you "before"; `src/scripts/audit-catalogue.ts` exists to
+measure "after" (see [Measuring the catalogue](#measuring-the-catalogue)).
+
+### Moods
+
+`/generate` asks what you are in the mood to build before it draws. A mood
+(`catalog/moods.ts`) is a **hard filter** over combinations the engine was
+going to consider anyway, not a nudge — picking "something small" and being
+handed a semester-long build would be a lie:
+
+| Mood | Selects for |
+|---|---|
+| Something small | `artifact.weight === 1` — finishable in a weekend |
+| Something hard | a genuinely difficult crux, not merely a big one |
+| Something visual | frontend or design in what it needs |
+| Something physical | `artifact.kind === "physical"` |
+| Something to figure out | the answer is the deliverable, not the app around it |
+
+When a mood cannot be satisfied the engine drops it and says so on the card,
+the same contract as the relaxation ladder below. Every predicate reads values
+the catalogue and `scoreFit` already produce — nothing new is stored, and none
+of it touches the draw's randomness.
 
 ### Doability
 
@@ -124,13 +197,24 @@ scored on how much of what it needs the person already has:
 
 A candidate is rejected below **0.34 fit** or with **more than one gap** — below
 that line you spend the whole project fighting tools rather than the problem.
-Everything surviving is ranked by distance from the person's stated appetite:
+Everything surviving is ranked by distance from the person's stated appetite,
+expressed as a **percentile of their own reachable range** rather than an
+absolute score:
 
-| Appetite | Target fit |
+| Appetite | Aims at |
 |---|---|
-| Play to my strengths | 0.86 |
-| Stretch me | 0.68 |
-| Throw me in | 0.52 |
+| Play to my strengths | the 85th percentile of what you can reach |
+| Stretch me | the 50th |
+| Throw me in | the 20th |
+
+The absolutes this replaced (0.86 / 0.68 / 0.52) assumed a spread of fit
+scores that almost nobody has — real profiles cluster between 0.37 and 0.55,
+so "play to my strengths" pointed above everything available and landed on
+whichever single combination sat nearest the number, every time, for everyone
+with similar skills. Scores are deduped before the percentile is taken, so a
+mechanic offering five shipping formats cannot drag it around just by having
+more rows. Below three candidates `appetiteTargetFrom()` takes the end of the
+range instead: a percentile over two values is a coin flip dressed as a model.
 
 Difficulty and the effort estimate are computed **relative to this person**, not in
 the abstract — the same problem is a weekend for one profile and a term for another.
@@ -143,12 +227,16 @@ against two software-shaped interests, for instance. Returning nothing there is
 the wrong answer, so `RELAXATIONS` in `engine/index.ts` lowers the bar a step at a
 time and says so on the card:
 
-| Tier | Bar | Domains | Card shows |
-|---|---|---|---|
-| 1 | fit ≥ 0.34, ≤ 1 gap | chosen only | nothing — normal result |
-| 2 | fit ≥ 0.24, ≤ 2 gaps | chosen only | "bigger stretch than you asked for" |
-| 3 | fit ≥ 0.34, ≤ 1 gap | all | "outside the interests you picked" |
-| 4 | fit ≥ 0.12, ≤ 3 gaps | all | "well outside both" |
+| Tier | Bar | Card shows |
+|---|---|---|
+| 1 | fit ≥ 0.34, ≤ 1 gap | nothing — normal result |
+| 2 | fit ≥ 0.24, ≤ 2 gaps | "bigger stretch than you asked for" |
+| 3 | fit ≥ 0.12, ≤ 3 gaps | "well outside both your interests and your skills" |
+
+The tiers now vary only the bar. There used to be a fourth that kept the bar
+and widened to all domains, which stopped meaning anything once interests
+became a weighting rather than a gate — an out-of-interest draw is routine, so
+it should not apologise for itself.
 
 It stops at the strictest tier that fills the request, so a well-matched profile
 never sees a caveat. An empty page is now only possible when every combination
@@ -160,6 +248,51 @@ Every problem's DNA hashes to a 64-bit `fingerprint`, which is `UNIQUE` in
 Postgres. Generation excludes every fingerprint ever issued to anyone, and the
 unique constraint is the final arbiter if two requests race. No two people in the
 club can ever be handed the same problem.
+
+Note what the guarantee does *and does not* cover: it is over the DNA tuple,
+not the prose. That is the right unit — two people should never be handed the
+same *problem* — but it is why variety had to be fixed separately, in the
+catalogue and the composer, rather than assumed from the fingerprint.
+
+### Rerolling
+
+A card you have not decided on yet can be swapped for a fresh draw in the same
+domain (`POST /api/problems/[id]/reroll`). This is "I don't want this specific
+execution", not a decision, so the old problem is deleted and its fingerprint
+goes back into the pool rather than staying reserved forever. Only `new`
+problems can be rerolled — once you have saved or passed on something, you
+have decided.
+
+It pins the domain through a real `restrictDomains` option on the engine.
+(It used to fake this by passing `{ ...profile, interests: [domainId] }`,
+which worked only while interests were a hard filter and broke silently the
+moment they became a weighting.)
+
+### Measuring the catalogue
+
+`src/scripts/audit-catalogue.ts` runs the real engine against four synthetic
+skill archetypes — hardware-only, hardware + mechanical, software, mixed — and
+gates on what the generator actually produces: per-category unlock counts,
+buildable combinations, mood feasibility, twist pool per artifact, friction
+and mechanic coverage, and prose lints over a 60-brief simulated draw (title
+variety, no dominant opening, artifact spread).
+
+```bash
+node --import ./src/scripts/register-alias.mjs src/scripts/audit-catalogue.ts
+```
+
+No build step and no dependencies. Node strips the TypeScript itself (run on
+24; on versions before 23.6 add `--experimental-strip-types`), and the two
+`.mjs` files beside it are a small ESM resolve hook so plain `node`
+understands the app's `@/` import alias without any app code changing to suit
+the script. The static sections need nothing; if `.env.local` is present it
+also pulls the live friction catalogue and simulates real draws. It sets a
+non-zero exit code when a gate fails, so it works as a pre-commit check on
+catalogue edits.
+
+This exists because stored prose is frozen: the database can only ever report
+on briefs written by the old composer, so simulation is the only honest source
+of "after" numbers.
 
 ---
 
@@ -248,12 +381,74 @@ comment thread, nothing else needs to know how either works.
 
 ### The home feed
 
-`/home` is the default landing page after signing in: the newest saved, building or
-shipped problems from people you follow, newest first, each with its engagement bar
-attached. An account that follows nobody gets pointed at Explore and the pairing
-directory instead of an empty page.
+`/home` is the default landing page after signing in, and it is the room the
+club is building in rather than a list of your own things. Seven sections, in
+this order:
+
+| Section | What it is |
+|---|---|
+| Right now | everything that has actually moved, newest first |
+| Building right now | actively worked on — the build log is the evidence |
+| From people you follow | the same stream, filtered to who you follow |
+| Looking for help | someone is stuck on something you might know |
+| Looking for teammates | published roles waiting on someone |
+| Projects matching you | scored against *your* skills, not their owner's |
+| 🚀 Just shipped | finished, in someone's hands, done |
+
+The stream behind the first three is `lib/activity-feed.ts`, which merges
+events out of records that already exist — projects, build logs, status
+transitions, roles, team joins — rather than a parallel event log. Seven event
+kinds, each keyed `${kind}:${sourceRowId}` so ids cannot collide across the
+five source tables.
+
+**Likes and comments are deliberately absent from the ranking.** "Meaningful
+progress outranks popularity" is easiest to guarantee by never putting
+popularity in the ordering at all; engagement appears as a demoted count on a
+card instead. An account that follows nobody still sees a full page — the
+follow-filtered section is the only one that empties.
+
+"Projects matching you" comes from `lib/match.ts`: the same catalogue lookup
+and `scoreFit` the fork route already does, re-scored for whoever is looking,
+because the stored `problem.fit` was scored against the owner at generation
+time and means nothing to anyone else. Deterministic and local — no model, no
+API call, no randomness.
 
 ![Home feed](docs/screenshots/home-feed.png)
+
+### Discover, and the Showcase
+
+Two public pages that answer different questions.
+
+**`/discover`** — "what is worth my attention?" Filter the whole club feed by
+domain or by skill, with URL-backed filter state so a filtered view is a
+link you can send someone. Two things sit above the list:
+
+- **Project Radar** — what is moving this week. Binary tiers, not a blended
+  score: a build-log entry (real movement) always outranks likes and comments
+  (people noticing), and count is only ever a same-tier tiebreak. Same spirit
+  as `pairing.ts` — complement, not ranking.
+- **The Weekly Digest** — a short, honest summary of the last seven days.
+
+The skill filter reads what a project *needs*, from its mechanic and artifact
+`requires` — not from `problem.fit.covered/gaps`, which are relative to
+whoever it was issued to and would make the filter wrong for everyone else.
+
+**`/showcase`** — "what did people actually finish?" Shipped work only, newest
+first, as cover cards. This is the page that makes finishing visible, and it
+is where forking starts.
+
+### Forking
+
+Open someone's shipped project and you can start your own version of it. The
+fork pins the source's exact DNA — so it reads as the same brief, and the
+lineage is recorded in `problems.inspired_by_problem_id` — but **re-scores fit
+for whoever is forking it**, which is the honest part: the same build is a
+different amount of work for a different person.
+
+The lineage column is `on delete set null`, not cascade. A fork is its own
+independent project, not a row owned by its source, so it survives the source
+being deleted and merely loses the backlink. The original's owner is notified
+when their work is forked.
 
 ### Collaboration requests
 
@@ -331,6 +526,14 @@ against are the ones somebody has actually lived with.
 - **`/admin/frictions`** — the review queue. Accepting puts it in the generator
   immediately.
 
+One convention learned the hard way: **a physical friction should name two to
+four mechanics, not one.** Every physical friction in the original seed named
+exactly one, against an average of 4.04 for the rest, which left the sampler
+with no choice to make and was a direct cause of the repetition. A mechanic no
+friction names at all is simply invisible — `offline-sync` was undrawable from
+the day it was written, and nothing surfaced that until the audit script went
+looking.
+
 Admin is set in the database and nowhere else:
 
 ```sql
@@ -386,39 +589,49 @@ SQLite version could not run on Vercel's read-only, ephemeral filesystem at all)
 ```
 supabase/
   schema.sql             tables, constraints, RLS policies - run once per project
-  migrations/            numbered deltas for a project that already has the schema
+  migrations/            numbered deltas, 001-012, run in order once each
+                           002b / 006 / 012 are catalogue content, not structure
 docs/
   screenshots/            images used in this README
 src/
   middleware.ts           refreshes the Supabase session cookie on every request
+  scripts/
+    audit-catalogue.ts     measures whether the generator produces varied,
+                             buildable briefs - gates on coverage + prose lints
+    alias-hooks.mjs         ESM resolve hook so plain `node` understands `@/`
+    register-alias.mjs       the --import entry point that installs it
   app/
+    layout.tsx             fonts, nav, and the pre-paint theme script
     page.tsx               landing
     login/, signup/         auth pages
     auth/actions.ts         server actions: login, signup, logout
     (app)/                  auth-gated route group
       layout.tsx             redirects to /login if no session
-      home/                    following-based feed - the default landing page signed in
+      home/                    the club's activity feed - default landing signed in
       profile/                skills, interests, constraints
-      generate/                draw new problems
+      generate/                draw new problems, optionally in a mood
       dashboard/               your problems + status + notes
       pair/                     who complements you + browse by expertise
       collaborate/              browse problems open to collaborators + your requests
       submit/                    propose a friction
       admin/frictions/            review queue (is_admin only)
     browse/                 public "Explore" club feed (no auth required)
+    discover/               public: filter by domain/skill + radar + weekly digest
+    showcase/               public: shipped work only, as cover cards
     u/[handle]/             public profile page - follow, shipped work, request to collaborate
     p/[id]/                 a project's own page - team, open roles, build log (public)
     api/
       me/                    GET current session's user + profile
       profile/               GET / POST (session-scoped)
-      generate/               POST { count } (session-scoped)
-      home/                    GET following-based feed, with engagement attached
+      generate/               POST { count, mood? } (session-scoped)
       problems/                GET (your problems + projects you joined, session-scoped)
-      problems/[id]/            PATCH { status, notes, checklist, feedback, lookingForCollaborators } - ownership-checked
-      problems/[id]/progress/    POST one build-log entry { body, kind, imageUrl?, linkUrl? } - owner or team member
-      problems/[id]/like/         POST toggle a like
-      problems/[id]/comments/     GET / POST comments (GET is public)
-      problems/[id]/collab-requests/  POST request to join a flagged-open problem or a specific role
+      problems/[id]/            PATCH { status, notes, checklist, feedback, lookingForCollaborators }
+      problems/[id]/reroll/      POST swap an undecided card for a fresh draw, same domain
+      problems/[id]/fork/         POST start your own version of someone's shipped project
+      problems/[id]/progress/      POST one build-log entry { body, kind, imageUrl?, linkUrl? }
+      problems/[id]/like/           POST toggle a like
+      problems/[id]/comments/       GET / POST comments (GET is public)
+      problems/[id]/collab-requests/  POST request to join a flagged-open problem or a role
       problems/[id]/roles/          GET (public) / POST publish an open role - owner-only
       problems/[id]/roles/[roleId]/  PATCH edit or close / DELETE - owner-only
       problems/[id]/members/[profileId]/  DELETE - owner removes anyone, a member removes themselves
@@ -426,7 +639,7 @@ src/
       profiles/[handle]/follow/   POST / DELETE
       profiles/[handle]/collab-requests/  POST a general (non-problem) request
       collab-requests/            GET incoming + outgoing, split by direction
-      collab-requests/[id]/        PATCH { status: accepted | declined } - recipient-only, adds team membership on accept
+      collab-requests/[id]/        PATCH { status } - recipient-only, adds team membership on accept
       collaborate/               GET problems flagged open to collaborators
       directory/                 GET discoverable members, filterable by strong category
       notifications/              GET recent + unread count
@@ -437,14 +650,21 @@ src/
       pair/                    GET complements + recurring gap
       stats/                  GET counts
   components/
-    Nav.tsx                  top nav + auth state + notification bell
+    Nav.tsx                  top nav + auth state + notification bell + theme switch
+    ThemeToggle.tsx           light/dark switch; the attribute is the whole mechanism
     ProblemCard.tsx           the full problem view - checklist, build log, engagement bar
-    BuildLog.tsx               typed build-log timeline + composer, two densities (compact/full)
+    ProjectCard.tsx            the compact list form, used by home/discover/collaborate
+    ShowcaseCard.tsx            the cover-card form, shipped work only
+    ActivityFeed.tsx           renders the merged club activity stream
+    DiscoverExplorer.tsx        Discover's filters + radar, URL-backed
+    WeeklyDigest.tsx             the last seven days, summarised
+    BuildLog.tsx               typed build-log timeline + composer, two densities
     TeamSection.tsx             a project's team list, owner-managed
-    OpenRoles.tsx               published roles + apply flow + the owner's "publish a role" form
+    OpenRoles.tsx               published roles + apply flow + the owner's publish form
     Engagement.tsx             the like button + comment thread, shared by every problem view
     NotificationBell.tsx        unread badge + dropdown, polls every 45s
     SwipeTriage.tsx          drag/tap/arrow-key triage for a freshly generated batch
+    AuthPitch.tsx / AuthToggle.tsx / SubmitButton.tsx   auth page furniture
     DamaruSpinner.tsx         the loading indicator - an actual damaru being played
     Mark.tsx                 the wordmark, reused as the spinner's body
   lib/
@@ -452,6 +672,9 @@ src/
     status.ts                 the project status ladder + build-log kinds - single source of truth
     db.ts                   Postgres data access via the service-role client
     activity.ts              staleness + checklist progress (shared client/server)
+    activity-feed.ts          merges five source tables into one ranked event stream
+    discover.ts               Discover's skill filter + Project Radar tiers
+    match.ts                  "projects you might want in on", scored for the viewer
     pairing.ts                complement + recurring-gap logic
     client.ts                 tiny fetch wrapper client components use to call the API
     supabase/
@@ -462,12 +685,13 @@ src/
     catalog/
       skills.ts               121 skills across 19 categories (11 software, 8 non-software engineering)
       domains.ts               18 domains (frictions live in Postgres)
-      blocks.ts                 30 mechanics, 14 artifacts, 18 twists
+      blocks.ts                 39 mechanics, 18 artifacts, 28 twists
+      moods.ts                   what you're in the mood to build, as a hard filter
     engine/
       index.ts                candidate selection  <- the LLM seam
-      fit.ts                   doability scoring
-      compose.ts                 prose composition, incl. 5 title variants per mechanic
-      novelty.ts                  fingerprinting + seeded RNG
+      fit.ts                   doability scoring + percentile appetite
+      compose.ts                 prose composition: title shapes, hooks, success criteria
+      novelty.ts                  fingerprinting + seeded RNG + weighted picking
 ```
 
 ---
@@ -483,17 +707,51 @@ no code change or deploy is involved.
 signals). Frictions then get attached to it through `/submit`.
 
 **Add a mechanic** — append to `MECHANICS` in `catalog/blocks.ts`, list the
-`artifacts` it can ship as, the skill categories it `requires`, and add a handful of
-short imperative variants to `MECHANIC_ACTIONS` in `engine/compose.ts` (one is picked
-per problem, seeded from its fingerprint, and becomes the title).
+`artifacts` it can ship as, the skill categories it `requires`, its `proof`
+(what shows the crux actually holds — this becomes a success criterion), and
+add a handful of short imperative variants to `MECHANIC_ACTIONS` in
+`engine/compose.ts`. **Then write frictions that name it**, or it is
+unreachable: the generator only ever sees a mechanic through a friction that
+lists it.
 
-**Add a twist** — append to `TWISTS`. This is the cheapest way to multiply the
-space: each new twist multiplies every existing combination.
+**Add a twist** — append to `TWISTS`, with a `proof` and optionally an
+`appliesTo` kind so a software-only constraint never lands on a physical
+build. This is the cheapest way to multiply the space: each new twist
+multiplies every existing combination.
+
+**Never rename or remove a catalogue id.** Stored problems reference mechanic,
+artifact and twist ids in their frozen DNA, so a removed id turns into an
+undefined lookup in the fork route and in `match.ts`. Adding is always safe;
+renaming never is.
+
+**Run the audit after catalogue edits** — `node --import
+./src/scripts/register-alias.mjs src/scripts/audit-catalogue.ts`. It is the
+difference between believing the catalogue is balanced and knowing it.
 
 Writing frictions is the real work. The test is whether a specific person would
 read it and wince. "Data is siloed" fails. "Their sample library is four thousand
 unlabelled WAV files and finding the right kick means auditioning for an hour"
 passes.
+
+### Theming
+
+Two themes, light by default, switched by `data-theme="dark"` on `<html>` and
+nothing else. Everything below the token block in `globals.css` reads CSS
+variables and never a raw colour — which is what made adding a second theme a
+palette rather than a rewrite, and is worth preserving: a hardcoded hex in a
+rule is a bug in one theme by construction.
+
+The remembered choice is applied by a small blocking inline script in
+`layout.tsx` before first paint, because doing it in an effect shows everyone
+who chose dark a white page first and then flips it. `ThemeToggle` suppresses
+CSS transitions for two frames across the swap so the change is instant
+rather than a ragged crossfade.
+
+Light is the default even when the operating system prefers dark. That is
+deliberate rather than an oversight — the dark palette was the only one for a
+while and members read it as intimidating, so a first visit should not start
+there. Every colour token clears WCAG AA (4.5:1) against the darkest surface
+it is used on.
 
 ### Swapping in an LLM later
 
@@ -525,3 +783,24 @@ in sync manually — there is no code generation step wired up.
 and on mount - simple, and fine at club scale, but a new follower or comment can take
 up to that long to show up in the badge without a page reload. No websocket or
 Supabase Realtime subscription wired up for it.
+
+**Problems issued before the generator overhaul keep their old prose.** The
+composed text is frozen into each row's `payload` at insert, which is what
+makes existing projects stable, but it also means the first 67 briefs still
+read the way members complained about. Regenerating them is not possible
+without breaking the "never issued twice" guarantee, so they stay as they are
+and only new draws benefit.
+
+**Some disciplines are still thin.** Aerospace, chemical and civil have far
+fewer mechanics and frictions than hardware or data. That follows from where
+the club's skills actually are rather than from an attempt at parity, and the
+audit script reports the shortfall rather than hiding it — but somebody with
+only civil skills will see a narrower catalogue than somebody with Arduino.
+
+**Two pieces of dead code.** `GET /api/home` is unreferenced since `/home`
+became a server component, and `appetiteTarget()` in `engine/fit.ts` is
+superseded by `appetiteTargetFrom()`. Both still compile and both should go.
+
+**`prefers-color-scheme` is ignored until you press the switch once.** A
+deliberate trade (see [Theming](#theming)), but it does mean a dark-mode user
+gets a light page on first visit.

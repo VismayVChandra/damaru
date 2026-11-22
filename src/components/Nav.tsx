@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Mark from "@/components/Mark";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeToggle from "@/components/ThemeToggle";
 import { logout } from "@/app/auth/actions";
 import { api } from "@/lib/client";
 import type { Profile } from "@/lib/types";
@@ -72,6 +73,11 @@ export default function Nav() {
         </div>
 
         <span className="nav-spacer" />
+
+        {/* Outside the collapsible menu and outside the logout form, for the
+            same reason as auth: on a phone it stays reachable, and it is not
+            a control you want one tap away from submitting a sign-out. */}
+        <ThemeToggle />
 
         {/* Auth stays outside the collapsible menu: on a phone, "how do I sign
             in" must never be the thing hidden behind a tap. */}

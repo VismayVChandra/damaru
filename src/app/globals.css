@@ -1,9 +1,81 @@
 /* ---------------------------------------------------------------------------
-   Damaru design tokens. One theme, dark, by design - not a fallback for a
-   light mode that stopped existing when this palette shipped.
+   Damaru design tokens.
+
+   Two themes, light by default. The dark palette shipped first and was the
+   only one for a while; real users read it as intimidating rather than
+   focused, which is a reasonable thing to feel about a near-black page you
+   are being handed a term's work on.
+
+   Light is therefore the default, and dark is a remembered choice rather
+   than something you have to be talked out of. `data-theme="dark"` on <html>
+   is the only switch - set before first paint by the inline script in
+   `layout.tsx`, so there is no flash of the wrong theme.
+
+   Everything downstream of this block reads tokens, never raw colours. That
+   is what made a second theme a palette rather than a rewrite, and it is
+   worth keeping: a hardcoded hex below this point is a bug in one theme by
+   construction.
    --------------------------------------------------------------------------- */
 
 :root {
+  color-scheme: light;
+
+  /* Warm paper rather than pure white - the wordmark and the ember accent
+     were drawn against something warm, and #fff makes both look cold. */
+  --ground: #faf6f2;
+  --panel: #ffffff;
+  /* Darker than --panel here, lighter than it in dark mode: "recessed" has
+     to read as set into the page in both, which is a direction, not a value. */
+  --panel-2: #f4efe9;
+  --border: #e4dace;
+  --border-strong: #cbbcab;
+  --border-subtle: #eee7de;
+  --border-recessed: #e7ddd2;
+
+  --text: #211b16;
+  --text-muted: #6a5c51;
+  /* Faint, but still AA at 4.7:1 on --panel-2, the darkest thing it ever sits
+     on. Dark text on paper goes pale much faster than light text on near-black
+     does, so the dark theme's equivalent lightness would be unreadable here. */
+  --text-faint: #786758;
+
+  /* Deeper than the dark theme's ember: #d9542b on paper is 3.4:1, which fails
+     for the small bold labels this is mostly used on. #bd4019 clears 4.5:1 on
+     all three surfaces, and white on it clears 5:1 for the filled buttons. */
+  --ember: #bd4019;
+  --ember-soft: rgba(189, 64, 25, 0.09);
+  --ember-line: #e0a184;
+
+  /* The dark theme's #67e8f9 is a light cyan - invisible as text on paper. */
+  --cool: #0e7490;
+  --cool-soft: #ecf7fa;
+
+  /* Both are used as text, not only as fills, so both have to clear
+     contrast on --panel rather than just look like the right hue. */
+  --good: #3d7838;
+  --warn: #a2542d;
+
+  --radius: 9px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgba(42, 32, 24, 0.05), 0 10px 26px -14px rgba(42, 32, 24, 0.22);
+  --shadow-lift: 0 10px 26px rgba(42, 32, 24, 0.13);
+  --shadow-inset: inset 0 1px 2px rgba(42, 32, 24, 0.05);
+
+  /* Foreground on a filled accent. Ember takes white in both themes; --good
+     flips, because it is a light green on dark and a dark green on paper. */
+  --on-accent: #fff6f2;
+  --on-good: #f4f8f3;
+  /* The top highlight on a filled button. Visible on dark, nearly nothing
+     on paper, where a white inset on a warm fill reads as a smudge. */
+  --accent-highlight: rgba(255, 255, 255, 0.22);
+
+  --mono: var(--font-jbmono), ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto,
+    sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
 
   --ground: #14100e;
@@ -28,19 +100,27 @@
   --good: #6fa36a;
   --warn: #d99d8a;
 
-  --radius: 9px;
-  --radius-lg: 14px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 10px 26px -14px rgba(0, 0, 0, 0.6);
   --shadow-lift: 0 10px 26px rgba(0, 0, 0, 0.35);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 
-  --mono: var(--font-jbmono), ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  --sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto,
-    sans-serif;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --on-accent: #fff6f2;
+  --on-good: #0e1a0d;
+  --accent-highlight: rgba(255, 255, 255, 0.12);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Set for two frames while the theme attribute flips (see ThemeToggle), so
+   the palette swap is one instant change rather than a ragged crossfade.
+   Deliberately heavy-handed - it is on for ~32ms and never during normal use,
+   which is the one case where `!important` on `*` is the right tool. */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
 }
 
 html,
@@ -197,7 +277,7 @@ textarea:focus-visible,
 
 .auth-toggle-btn[data-on="true"] {
   background: var(--ember);
-  color: #fff6f2;
+  color: var(--on-accent);
 }
 
 .auth-field .input {
@@ -206,7 +286,7 @@ textarea:focus-visible,
 
 .auth-submit {
   width: 100%;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+  box-shadow: inset 0 1px 0 var(--accent-highlight),
     0 8px 20px -8px color-mix(in srgb, var(--ember) 70%, transparent);
 }
 
@@ -296,6 +376,38 @@ textarea:focus-visible,
 .nav-handle:hover {
   border-color: var(--ember);
   color: var(--ember);
+}
+
+/* --- Theme switch ----------------------------------------------------------
+   Sized to match .nav-toggle exactly, so the two sit as one pair of controls
+   on mobile where both are visible. */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  margin-right: 8px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
+.theme-toggle-icon {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
 }
 
 .nav-toggle {
@@ -426,7 +538,7 @@ h3 {
   background: var(--panel-2);
   border: 1px solid var(--border-recessed);
   border-radius: var(--radius-lg);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-inset);
   padding: 22px;
 }
 
@@ -512,7 +624,7 @@ h3 {
 .btn-primary {
   background: var(--ember);
   border-color: var(--ember);
-  color: #fff6f2;
+  color: var(--on-accent);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -668,14 +780,14 @@ h3 {
 
 .level-btn[data-on="true"] {
   background: var(--ember);
-  color: #fff6f2;
+  color: var(--on-accent);
 }
 
 /* "Strong" reads as a different claim than "learning"/"ok" - not just a
    deeper shade of the same tint. */
 .level-btn[data-level="3"][data-on="true"] {
   background: var(--good);
-  color: #0e1a0d;
+  color: var(--on-good);
 }
 
 /* --- Skill category accordion ---------------------------------------------
@@ -1184,7 +1296,7 @@ h3 {
 .triage-save {
   background: var(--good);
   border-color: var(--good);
-  color: #fff;
+  color: var(--on-good);
 }
 
 .triage-save:hover:not(:disabled) {
@@ -1622,20 +1734,26 @@ span.meter {
     order: 1;
   }
 
-  .nav-auth {
+  /* Every item on this bar is explicitly ordered, so a new one without an
+     `order` silently lands at 0 and sits next to the wordmark. */
+  .theme-toggle {
     order: 2;
+  }
+
+  .nav-auth {
+    order: 3;
   }
 
   .nav-toggle {
     display: inline-flex;
-    order: 3;
+    order: 4;
   }
 
   /* Shown or not, rather than animated open: a height transition needs a
      guessed ceiling, and the menu is a different length for admins. */
   .nav-links {
     display: none;
-    order: 4;
+    order: 5;
     flex-basis: 100%;
     flex-direction: column;
     align-items: stretch;
@@ -1773,7 +1891,7 @@ span.meter {
   padding: 0 4px;
   border-radius: 999px;
   background: var(--ember);
-  color: #fff;
+  color: var(--on-accent);
   font-family: var(--mono);
   font-size: 10px;
   line-height: 16px;
