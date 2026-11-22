@@ -49,6 +49,43 @@ export function appetiteTarget(appetite: Appetite): number {
   return APPETITE_TARGET[appetite];
 }
 
+/** Where in your own range of buildable options each appetite aims. */
+const APPETITE_PERCENTILE: Record<Appetite, number> = {
+  comfort: 0.85,
+  stretch: 0.5,
+  deepend: 0.2,
+};
+
+/**
+ * The fit to aim for, as a percentile of what this person can actually reach,
+ * rather than an absolute score.
+ *
+ * The absolutes this replaces (0.86 / 0.68 / 0.52) assumed a range of fits
+ * that almost nobody has: real profiles cluster between 0.37 and 0.55, so
+ * "comfort" pointed above everything available and landed on whichever single
+ * combination happened to sit nearest the number - every time, for everyone
+ * with similar skills.
+ *
+ * @param distinctAscending deduped fit scores, ascending. Deduped because
+ *   otherwise a mechanic offering five shipping formats drags the percentile
+ *   around purely by having more rows than one offering two.
+ */
+export function appetiteTargetFrom(
+  distinctAscending: number[],
+  appetite: Appetite,
+  floor = 0,
+): number {
+  const n = distinctAscending.length;
+  if (n === 0) return floor;
+  // Below three options a percentile is a coin flip wearing a model's
+  // clothes, so just take the end of the range the appetite points at.
+  if (n < 3) {
+    return Math.max(floor, appetite === "deepend" ? distinctAscending[0] : distinctAscending[n - 1]);
+  }
+  const index = Math.min(n - 1, Math.floor(APPETITE_PERCENTILE[appetite] * n));
+  return Math.max(floor, distinctAscending[index]);
+}
+
 const TIME_WEIGHT: Record<TimeBudget, number> = {
   weekend: 1,
   twoweeks: 2,

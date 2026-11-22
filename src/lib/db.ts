@@ -261,6 +261,39 @@ function rowToProblem(row: ProblemRow): Problem {
 /** Columns plus the embedded progress log, for views that show movement. */
 const PROBLEM_WITH_PROGRESS = "*, progress_entries(*)";
 
+/**
+ * How often each mechanic and artifact has been drawn - club-wide, or for one
+ * person. Feeds the sampler's novelty pressure, which is the only thing that
+ * makes two people with similar skills get different briefs: the ranking is
+ * otherwise a pure function of the profile, so it comes out identical.
+ *
+ * Tallied in Node rather than in SQL because the ids live inside the payload
+ * jsonb, and at club scale this is one small read - the same reasoning
+ * `countActiveByProfile` and `getEngagementFor` already use.
+ */
+export async function getDnaUsage(profileId?: string): Promise<{
+  mechanics: Map<string, number>;
+  artifacts: Map<string, number>;
+  total: number;
+}> {
+  let query = getAdminClient().from("problems").select("payload");
+  if (profileId) query = query.eq("profile_id", profileId);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const mechanics = new Map<string, number>();
+  const artifacts = new Map<string, number>();
+  let total = 0;
+  for (const row of data ?? []) {
+    const dna = (row as { payload?: { dna?: { mechanicId?: string; artifactId?: string } } }).payload?.dna;
+    if (!dna?.mechanicId || !dna?.artifactId) continue;
+    mechanics.set(dna.mechanicId, (mechanics.get(dna.mechanicId) ?? 0) + 1);
+    artifacts.set(dna.artifactId, (artifacts.get(dna.artifactId) ?? 0) + 1);
+    total++;
+  }
+  return { mechanics, artifacts, total };
+}
+
 /** Every fingerprint ever issued, so the same problem is never handed out twice. */
 export async function allFingerprints(): Promise<Set<string>> {
   const { data, error } = await getAdminClient().from("problems").select("fingerprint");

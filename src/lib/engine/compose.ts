@@ -57,7 +57,38 @@ const MECHANIC_ACTIONS: Record<string, string[]> = {
   "biomech-design": ["Design for a real body", "Design for bodies, not one idealised one", "Build it for the person, not the average", "Fit the range of real bodies, not one", "Design around how people actually move"],
   "environmental-system": ["Prove it meets the limit", "Measure against a real limit, not a feeling", "Prove compliance, don't assume it", "Hold the line against a real limit", "Monitor it, don't just test it once"],
   manufacturability: ["Make it buildable twice", "Design for the tenth one, not just the first", "Make the process as solid as the part", "Make unit ten as good as unit one", "Design tolerances you can actually hold"],
+  actuation: ["Make it land where you told it to", "Hit the same position a hundred times", "Move it accurately under load", "Take the slop out of the motion", "Make the mechanism go exactly where it is sent"],
+  "control-loop": ["Hold the line when something pushes back", "Keep it steady without the oscillation", "Make it recover from a shove", "Hold the setpoint in the real world", "Tune it until it stops hunting"],
+  teleop: ["Drive it without seeing it", "Make it operable from the next room", "Hand someone the controls over a laggy link", "Make remote feel like present", "Keep it safe when the link drops"],
+  "power-budget": ["Make the battery last the week", "Survive the duty cycle unattended", "Find where the power actually goes", "Make it run far longer than it should", "Earn the runtime, don't estimate it"],
+  enclosure: ["Make it survive being owned", "Get it out of the breadboard and into the world", "Package it so it survives the journey", "Build the box that takes the abuse", "Make it openable and still sealed"],
+  autonomy: ["Finish the job with nobody watching", "Make it complete the task alone", "Decide when to stop without a human", "Run unattended and fail gracefully", "Make it trustworthy when you are not there"],
+  mechanism: ["Turn one motion into another", "Make the linkage do the hard part", "Get the motion you need from the space you have", "Replace a motor with geometry", "Design the movement, not the motor"],
+  "tolerance-stack": ["Make it fit at the worst case", "Build it so it always assembles", "Find the dimension everything depends on", "Make it work with real tolerances", "Stop it jamming on the tenth build"],
+  instrumentation: ["Pull the signal out of the noise", "Measure the thing nobody can measure", "Make the weak signal readable", "Find the noise floor and beat it", "Turn a messy voltage into a number"],
 };
+
+interface TitleParts {
+  action: string;
+  actor: string;
+  tag: string;
+  artifact: string;
+}
+
+const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/** Four different things can open a title - the action, the person, the
+ * constraint, or the thing being built - so two briefs sharing a mechanic
+ * rarely share their first words. */
+const TITLE_SHAPES: ((p: TitleParts) => string)[] = [
+  (p) => `${p.action}, for ${p.actor}`,
+  (p) => `${p.action} — ${p.tag}`,
+  (p) => `For ${p.actor}: ${lower(p.action)}`,
+  (p) => `${cap(p.tag)}: ${lower(p.action)}`,
+  (p) => `${cap(p.actor)} needs this — ${lower(p.action)}`,
+  // No artifact-led shape: there are only eighteen shipping formats, so
+  // "A physical device that..." came up far more than any other opening.
+];
 
 const HOOK_OPENERS = [
   (actor: string, friction: string) =>
@@ -68,15 +99,63 @@ const HOOK_OPENERS = [
   (actor: string, friction: string) =>
     `Start with ${actor}. The thing that quietly ruins their week is that ${friction}.`,
   (actor: string, friction: string) => `This one looks small and is not. For ${actor}, ${friction}.`,
+  (actor: string, friction: string) => `Spend an afternoon with ${actor} and you will see it: ${friction}.`,
+  (actor: string, friction: string) => `${cap(actor)} has a workaround for this, and hates it: ${friction}.`,
+  (actor: string, friction: string) =>
+    `The complaint sounds minor until you watch it happen. ${cap(friction)} — every week, for ${actor}.`,
+  (actor: string, friction: string) => `Ask ${actor} what wastes their time and this comes up: ${friction}.`,
+  (actor: string, friction: string) =>
+    `Nobody has written this down anywhere, which is how you know it is real: ${friction}. ${cap(actor)} lives with it.`,
+  (actor: string, friction: string) =>
+    `For ${actor} this is just how the week goes: ${friction}.`,
+  (actor: string, friction: string) =>
+    `Here is something nobody has got around to: ${friction}. The person it lands on is ${actor}.`,
 ];
 
-const HOOK_STAKES = [
+// Three of these used to cover 46% of every brief ever issued, which is most
+// of what "it keeps repeating" meant. Split by whether the thing being built
+// is software or physical, because the market framing below reads absurd on a
+// jig, and the workshop framing reads absurd on a web app.
+const HOOK_STAKES_ANY = [
   "The cost is never dramatic. It is a steady tax that everyone involved has stopped noticing, which is precisely why it survives.",
   "It never becomes urgent enough to fix, and that is exactly why it never gets fixed.",
   "Every workaround in the chain is individually reasonable and collectively absurd.",
   "The people affected have simply concluded that this is how things are. They are wrong, and that gap is your opening.",
-  "There is no product here because the market is too small to interest anyone with a budget. That is what makes it yours.",
   "Solve it properly and you will not have built a demo — you will have built something a real person keeps using after you stop maintaining it.",
+  "Everyone involved can describe the problem in one sentence, and nobody has had an uninterrupted afternoon to deal with it.",
+  "It is the kind of thing people apologise for rather than fix, which tells you how long it has been going on.",
+  "Nobody owns this problem, so it has been quietly absorbed by whoever happened to be standing nearest.",
+  "The workaround has been in place so long that it now looks like the process.",
+  "It wastes a small amount of time very often, which is the hardest kind of waste to get anyone to care about.",
+  "Ask about it and you will get a shrug and a story. The story is the specification.",
+  "There is a reason nobody has fixed this, and it is almost never that it is technically hard.",
+];
+
+const HOOK_STAKES_SOFTWARE = [
+  "There is no product here because the market is too small to interest anyone with a budget. That is what makes it yours.",
+  "The commercial tools that solve this cost more than the problem does, which is why nobody has bought one.",
+  "Somebody built a spreadsheet for this once. It is still in use, and it is load-bearing.",
+];
+
+const HOOK_STAKES_PHYSICAL = [
+  "There is no product here because the run would be fifty units, which is nobody's business case and could be your term.",
+  "The commercial version exists, costs more than the budget, and does four things nobody needs.",
+  "Somebody bodged this once out of what was in the workshop. It is still there, and everyone works around its quirks.",
+];
+
+const SUCCESS_GENERAL = [
+  "A person who has never seen it can complete the core task without you in the room.",
+  "It handles the ugliest real example you can find, and fails legibly on the ones it cannot.",
+  "You can explain the central decision, and why you rejected the obvious alternative, in two minutes.",
+  "It still works a week later without you having touched it.",
+  "Someone else can set it up from your notes alone, while you say nothing.",
+  "The first thing it does when something goes wrong is tell you clearly what went wrong.",
+  "You can point at the number that was bad before and show it being less bad now.",
+  "It survives being used by someone in a hurry who did not read anything.",
+  "Nothing about it depends on a detail that only lives in your head.",
+  "You would be comfortable leaving it running while you are away for a week.",
+  "The person it was built for can describe what it does without using your words for it.",
+  "A sceptic who pokes at the weakest part finds that you already thought about it.",
 ];
 
 const SCOPE_LINES = [
@@ -141,9 +220,23 @@ export function compose(
   const rng = seededRandom(fp);
 
   const action = pick(rng, MECHANIC_ACTIONS[mechanic.id] ?? ["Build the missing tool"]);
-  const title = `${action}, for ${dna.actor}`;
+  // Six shapes rather than one. Every title used to be "<action>, for
+  // <actor>", and since the action comes from a five-item pool per mechanic,
+  // 78% of titles ever issued opened with words another title had already
+  // used. The point of varying the shape is varying the *opening* - so most
+  // of these lead with something other than the action.
+  const title = pick(rng, TITLE_SHAPES)({
+    action,
+    actor: dna.actor,
+    tag: twist.tag,
+    artifact: artifact.phrase,
+  });
 
-  const hook = `${pick(rng, HOOK_OPENERS)(dna.actor, dna.friction)} ${pick(rng, HOOK_STAKES)}`;
+  const stakesPool = [
+    ...HOOK_STAKES_ANY,
+    ...(artifact.kind === "physical" ? HOOK_STAKES_PHYSICAL : HOOK_STAKES_SOFTWARE),
+  ];
+  const hook = `${pick(rng, HOOK_OPENERS)(dna.actor, dna.friction)} ${pick(rng, stakesPool)}`;
 
   // The statement names the crux; the full requirement lives in "must do" so
   // the two do not repeat each other word for word.
@@ -192,11 +285,18 @@ export function compose(
     whyParts.push(
       `${joinList(haveLabels)} covers the whole technical surface, so nothing here should block you.`,
     );
-    whyParts.push(`The stretch is not in the stack, it is in the constraint: ${twist.teaches}.`);
+    // Name the constraint here; what it teaches is said once, below, rather
+    // than twice in the same brief.
+    whyParts.push(`The stretch is not in the stack, it is in the constraint: ${twist.tag}.`);
   }
 
+  // Interests tilt the draw rather than gating it, so a brief can legitimately
+  // land outside what someone picked. Claiming they care about it either way
+  // would be the one sentence in the brief that is obviously untrue.
   whyParts.push(
-    `Your interest in ${domain.label.toLowerCase()} matters here — you will need judgement about what actually helps, and that only comes from caring about the domain.`,
+    profile.interests.includes(dna.domainId)
+      ? `Your interest in ${domain.label.toLowerCase()} matters here — you will need judgement about what actually helps, and that only comes from caring about the domain.`
+      : `${cap(domain.label.toLowerCase())} is not an area you picked, which is the point: you were matched on the crux, not the subject. Expect to spend the first week asking ${dna.actor} questions you would not have thought to ask in familiar territory.`,
   );
   const whyYou = whyParts.join(" ");
 
@@ -229,19 +329,25 @@ export function compose(
   );
 
   // --- Success criteria ----------------------------------------------------
+  // These used to be four fixed sentences on every brief ever generated, so
+  // anyone who read two briefs had read them twice. Two are now drawn from a
+  // pool and two come from the DNA, which means two briefs only share their
+  // criteria if they share a mechanic and a constraint.
   const successCriteria = [
-    "A person who has never seen it can complete the core task without you in the room.",
-    "It handles the ugliest real example you can find, and fails legibly on the ones it cannot.",
+    // The one worth keeping as an anchor: it is the only test that cannot be
+    // satisfied by the thing merely existing.
     `${cap(dna.actor)} chooses to use it a second time without being asked.`,
-    "You can explain the central technical decision, and why you rejected the obvious alternative, in two minutes.",
+    `The crux holds up: ${lower(mechanic.proof)}`,
+    `The constraint held: ${lower(twist.proof)}`,
+    ...pickMany(rng, SUCCESS_GENERAL, 2),
   ];
 
   // --- Skill stretch -------------------------------------------------------
   const growing = [...stretchLabels, ...gapLabels];
   const skillStretch =
     growing.length > 0
-      ? `Unfamiliar ground: ${joinList(growing)}. The crux itself teaches ${mechanic.teaches}; the constraint forces ${twist.teaches}.`
-      : `Not new territory, but new depth. The crux teaches ${mechanic.teaches}; the constraint forces ${twist.teaches}.`;
+      ? `Unfamiliar ground: ${joinList(growing)}. What you take away: the crux shows ${mechanic.teaches}, and the constraint forces ${twist.teaches}.`
+      : `Not new territory, but new depth. What you take away: the crux shows ${mechanic.teaches}, and the constraint forces ${twist.teaches}.`;
 
   // --- Starting angle --------------------------------------------------------
   // Hidden behind a reveal in the UI, never shown alongside the brief by

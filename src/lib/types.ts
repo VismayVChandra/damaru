@@ -117,11 +117,20 @@ export interface Mechanic {
   /** 1 = routine, 2 = meaty, 3 = genuinely hard. */
   difficulty: 1 | 2 | 3;
   requirement: string;
+  /** What would convince a sceptic the hard part is actually solved. Becomes
+   * a success criterion, so it has to be checkable rather than aspirational. */
+  proof: string;
   teaches: string;
   /** The smallest concrete slice of the crux to attempt first - feeds the
    * optional, hidden-by-default "starting angle" hint, never the brief itself. */
   firstMove: string;
 }
+
+/** Whether the thing being shipped exists on a screen or in the room. Lets
+ * twists and moods target a family rather than listing artifact ids, so a new
+ * shipping format is automatically handled everywhere instead of needing to
+ * be remembered in each predicate. */
+export type ArtifactKind = "software" | "physical" | "either";
 
 /** The shape of the thing they ship. */
 export interface Artifact {
@@ -129,6 +138,7 @@ export interface Artifact {
   label: string;
   /** Article-prefixed noun phrase, e.g. "a web app". */
   phrase: string;
+  kind: ArtifactKind;
   requires: SkillCategory[];
   nice: SkillCategory[];
   /** Rough build weight, 1 = light, 3 = heavy. */
@@ -143,11 +153,19 @@ export interface Artifact {
 export interface Twist {
   id: string;
   text: string;
+  /** Two to four words naming the constraint, short enough to lead a title. */
+  tag: string;
+  /** The demonstration that the constraint actually held, rather than being
+   * quietly dropped halfway through. */
+  proof: string;
+  /** Limits the constraint to one family of shipping formats. "Hand tools
+   * only" is nonsense on a written investigation; "keyboard and screen reader"
+   * is nonsense on a jig. Artifacts of kind "either" accept both. */
+  appliesTo?: ArtifactKind;
   teaches: string;
   /**
-   * Artifact ids this twist doesn't make sense for - e.g. "must fit in a
-   * single file" is a real constraint for a CLI tool and nonsense for a
-   * physical prototype. Absent means it applies everywhere.
+   * Artifact ids this twist doesn't make sense for, where `appliesTo` is too
+   * blunt. Absent means it applies to everything its kind allows.
    */
   excludeArtifacts?: string[];
 }

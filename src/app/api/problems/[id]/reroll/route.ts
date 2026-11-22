@@ -53,18 +53,17 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   ]);
   const frictions = indexFrictions(catalogue);
 
-  // Narrowing "interests" to just this domain steers the draw back into it -
-  // the engine's own relaxation ladder still falls back to other domains if
-  // this one truly has nothing left to offer, same as a normal generate.
-  const narrowed = { ...profile, interests: [existing.dna.domainId] };
-
   let drawn: Problem | null = null;
   for (let pass = 0; pass < 4 && !drawn; pass++) {
-    const [draft] = generateProblems(narrowed, {
+    const [draft] = generateProblems(profile, {
       frictions,
       count: 1,
       excludeFingerprints: issued,
       excludeFrictionIds: seenFrictions,
+      // "Another one like this" means another one in this domain. Interests
+      // used to be a hard filter, so overriding them was enough to pin the
+      // draw; now that they only tilt the odds, the pin has to be explicit.
+      restrictDomains: [existing.dna.domainId],
       seed: `${profile.id}:reroll:${id}:${pass}:${Math.random()}`,
     });
     if (!draft) break;

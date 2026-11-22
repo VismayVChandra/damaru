@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import {
   allFingerprints,
+  getDnaUsage,
   getProfileById,
   insertProblem,
   listAcceptedFrictions,
@@ -36,13 +37,19 @@ export async function POST(request: Request) {
   // the rest of this body, and the engine falls back to an unmooded draw.
   const moodId = typeof body.mood === "string" && MOOD_BY_ID.has(body.mood) ? body.mood : undefined;
 
-  const [issued, catalogue, seenFrictions] = await Promise.all([
+  const [issued, catalogue, seenFrictions, clubUsage, personalUsage] = await Promise.all([
     allFingerprints(),
     listAcceptedFrictions(),
     listIssuedFrictionIds(profile.id),
+    getDnaUsage(),
+    getDnaUsage(profile.id),
   ]);
   const frictions = indexFrictions(catalogue);
   const saved: Problem[] = [];
+  // Carried across passes so the later ones keep spreading out rather than
+  // each starting from a clean slate and landing in the same place.
+  const usedMechanics = new Set<string>();
+  const usedArtifacts = new Set<string>();
 
   // Each pass excludes everything already issued globally plus anything this
   // request has just claimed, so a batch never repeats itself either.
@@ -52,6 +59,10 @@ export async function POST(request: Request) {
       count: count - saved.length,
       excludeFingerprints: issued,
       excludeFrictionIds: seenFrictions,
+      excludeMechanics: usedMechanics,
+      excludeArtifacts: usedArtifacts,
+      clubUsage,
+      personalUsage,
       seed: `${profile.id}:${Date.now()}:${pass}:${Math.random()}`,
       moodId,
     });
@@ -77,6 +88,16 @@ export async function POST(request: Request) {
       if (stored) {
         saved.push(stored);
         issued.add(stored.fingerprint);
+        usedMechanics.add(stored.dna.mechanicId);
+        usedArtifacts.add(stored.dna.artifactId);
+        // Keep the novelty pressure honest within the request, so pass two
+        // already knows what pass one handed out.
+        clubUsage.mechanics.set(stored.dna.mechanicId, (clubUsage.mechanics.get(stored.dna.mechanicId) ?? 0) + 1);
+        clubUsage.artifacts.set(stored.dna.artifactId, (clubUsage.artifacts.get(stored.dna.artifactId) ?? 0) + 1);
+        clubUsage.total++;
+        personalUsage.mechanics.set(stored.dna.mechanicId, (personalUsage.mechanics.get(stored.dna.mechanicId) ?? 0) + 1);
+        personalUsage.artifacts.set(stored.dna.artifactId, (personalUsage.artifacts.get(stored.dna.artifactId) ?? 0) + 1);
+        personalUsage.total++;
       }
     }
   }

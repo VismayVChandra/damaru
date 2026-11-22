@@ -1,10 +1,19 @@
-import type { Artifact, FrictionRecord, Mechanic, Problem, ProblemDNA, Profile } from "@/lib/types";
+import type {
+  Artifact,
+  Domain,
+  FitBreakdown,
+  FrictionRecord,
+  Mechanic,
+  Problem,
+  ProblemDNA,
+  Profile,
+} from "@/lib/types";
 import { DOMAINS, DOMAIN_BY_ID } from "@/lib/catalog/domains";
-import { ARTIFACT_BY_ID, MECHANICS, MECHANIC_BY_ID, TWISTS } from "@/lib/catalog/blocks";
-import { appetiteTarget, categoryStrengths, isDoable, scoreFit } from "./fit";
+import { ARTIFACTS, ARTIFACT_BY_ID, MECHANICS, MECHANIC_BY_ID, TWISTS } from "@/lib/catalog/blocks";
+import { appetiteTargetFrom, categoryStrengths, isDoable, scoreFit } from "./fit";
 import type { DoabilityBar } from "./fit";
 import { compose } from "./compose";
-import { fingerprint, pick, seededRandom } from "./novelty";
+import { fingerprint, pick, pickWeighted, seededRandom } from "./novelty";
 import { MOOD_BY_ID, type Mood } from "@/lib/catalog/moods";
 
 export type GeneratedProblem = Omit<
@@ -58,6 +67,40 @@ export interface GenerateOptions {
   /** What this person is in the mood to build. A hard filter while it can be
    * satisfied; dropped with a caveat rather than returning nothing. */
   moodId?: string;
+  /** Pin the draw to these domains. Reroll uses it to stay inside the domain
+   * being rerolled, which interests no longer do now they are a weighting. */
+  restrictDomains?: string[];
+  /** What the club as a whole has already been handed. Without it, ten
+   * similar profiles get byte-identical rankings and therefore the same
+   * briefs as each other. */
+  clubUsage?: DnaUsage;
+  /** What this person has already been handed. Weighted harder than the
+   * club's: "repetitive" is a judgement about your own feed, not everyone's. */
+  personalUsage?: DnaUsage;
+  /** Mechanics and artifacts already used by earlier passes of the same
+   * request, so the four passes of one generate don't undo each other. */
+  excludeMechanics?: Set<string>;
+  excludeArtifacts?: Set<string>;
+}
+
+/** Draw counts, for pushing the sampler toward things it has not used. */
+export interface DnaUsage {
+  mechanics: Map<string, number>;
+  artifacts: Map<string, number>;
+  total: number;
+}
+
+/** 0 when never drawn, 1 at exactly its fair share, 2 at double. Capped so a
+ * single hogged mechanic cannot dominate the term. */
+function relativeUse(count: number, total: number, slots: number): number {
+  if (total <= 0 || slots <= 0) return 0;
+  return Math.min(2, count / (total / slots));
+}
+
+/** +1 for never used, -1 for twice its share. */
+function novelty(usage: DnaUsage | undefined, key: string, kind: "mechanics" | "artifacts", slots: number): number {
+  if (!usage) return 0;
+  return 1 - relativeUse(usage[kind].get(key) ?? 0, usage.total, slots);
 }
 
 interface Combo {
@@ -81,42 +124,64 @@ function rankCombosByMechanic(
   profile: Profile,
   bar: DoabilityBar,
   mood: Mood | null,
+  clubUsage?: DnaUsage,
+  personalUsage?: DnaUsage,
 ): Map<string, Combo[]> {
   const strengths = categoryStrengths(profile);
-  const target = appetiteTarget(profile.appetite);
   const prefs = new Set(profile.artifactPrefs);
   const timeTarget = TIME_TARGET_WEIGHT[profile.timeBudget];
 
-  const byMechanic = new Map<string, Combo[]>();
-
+  // Pass one: what can this person build at all, and at what fits. The
+  // appetite target is a percentile of *these* scores rather than an absolute,
+  // because the old absolutes (0.86 / 0.68 / 0.52) were calibrated against a
+  // fit range most real profiles never reach - which quietly aimed everyone
+  // at whichever single combo sat nearest the number.
+  const viable: { mechanic: Mechanic; artifact: Artifact; fit: FitBreakdown }[] = [];
   for (const mechanic of MECHANICS) {
-    const combos: Combo[] = [];
     for (const artifactId of mechanic.artifacts) {
       const artifact = ARTIFACT_BY_ID.get(artifactId);
       if (!artifact) continue;
-
       const fit = scoreFit(profile, strengths, mechanic, artifact);
       if (!isDoable(fit, bar)) continue;
-      // The mood filters the same space the doability bar does, and for the
-      // same reason: better to hand back nothing here and relax later than to
-      // quietly return something that isn't what was asked for.
       if (mood && !mood.matches(mechanic, artifact, fit)) continue;
-
-      // Closeness to the appetite they asked for dominates.
-      let score = 1 - Math.abs(fit.score - target);
-      // Respect a stated preference for what they want to build.
-      if (prefs.size > 0 && prefs.has(artifact.id)) score += 0.35;
-      // Nudge toward things that fit the time they actually have.
-      score -= Math.abs(artifact.weight - timeTarget) * 0.06;
-
-      combos.push({ mechanic, artifact, score });
-    }
-    if (combos.length > 0) {
-      combos.sort((a, b) => b.score - a.score);
-      byMechanic.set(mechanic.id, combos);
+      viable.push({ mechanic, artifact, fit });
     }
   }
+  if (viable.length === 0) return new Map();
 
+  const target = appetiteTargetFrom(
+    [...new Set(viable.map((v) => v.fit.score))].sort((a, b) => a - b),
+    profile.appetite,
+    bar.minFit,
+  );
+
+  const mechanicSlots = MECHANICS.length;
+  const artifactSlots = ARTIFACTS.length;
+  const byMechanic = new Map<string, Combo[]>();
+
+  for (const { mechanic, artifact, fit } of viable) {
+    // Closeness to the appetite they asked for dominates.
+    let score = 1 - Math.abs(fit.score - target);
+    // Respect a stated preference, but only as a thumb on the scale. At the
+    // old 0.35 it outweighed every other term combined, so ticking one box
+    // decided the brief outright.
+    if (prefs.has(artifact.id)) score += 0.1;
+    // Nudge toward things that fit the time they actually have.
+    score -= Math.abs(artifact.weight - timeTarget) * 0.06;
+    // Push toward what this person, then the club, has seen least of. Kept
+    // deliberately smaller than the spread in fit: novelty should break ties
+    // and reorder near-equals, never hand someone work they cannot do.
+    score += 0.2 * novelty(personalUsage, mechanic.id, "mechanics", mechanicSlots);
+    score += 0.1 * novelty(personalUsage, artifact.id, "artifacts", artifactSlots);
+    score += 0.12 * novelty(clubUsage, mechanic.id, "mechanics", mechanicSlots);
+    score += 0.06 * novelty(clubUsage, artifact.id, "artifacts", artifactSlots);
+
+    const list = byMechanic.get(mechanic.id);
+    if (list) list.push({ mechanic, artifact, score });
+    else byMechanic.set(mechanic.id, [{ mechanic, artifact, score }]);
+  }
+
+  for (const combos of byMechanic.values()) combos.sort((a, b) => b.score - a.score);
   return byMechanic;
 }
 
@@ -125,18 +190,61 @@ function rankCombosByMechanic(
  * domain that currently has no accepted frictions, which would otherwise be a
  * dead end the sampler keeps rediscovering.
  */
-function candidateDomains(profile: Profile, frictions: FrictionIndex) {
+/** How much of the draw the person's stated interests should account for.
+ * The rest goes to everything else, so picking three interests tilts the
+ * odds instead of walling off the other fifteen domains - which is what kept
+ * 131 of 160 frictions permanently out of reach. */
+const INTEREST_SHARE = 0.6;
+
+/**
+ * Domains to draw from, weighted. Expressed as a share rather than a ratio on
+ * purpose: a fixed 3:1 would mean someone who picked three interests gets a
+ * very different mix from someone who picked six, for no reason they chose.
+ */
+function candidateDomains(
+  profile: Profile,
+  frictions: FrictionIndex,
+  restrictDomains?: string[],
+): { item: Domain; weight: number }[] {
   const stocked = (d: { id: string }) => (frictions.get(d.id)?.length ?? 0) > 0;
-  const chosen = profile.interests
-    .map((id) => DOMAIN_BY_ID.get(id))
-    .filter((d): d is NonNullable<typeof d> => Boolean(d))
-    .filter(stocked);
-  return chosen.length > 0 ? chosen : DOMAINS.filter(stocked);
+
+  // Reroll pins the draw to one domain; it is not a preference.
+  if (restrictDomains?.length) {
+    const pinned = restrictDomains
+      .map((id) => DOMAIN_BY_ID.get(id))
+      .filter((d): d is Domain => Boolean(d))
+      .filter(stocked);
+    if (pinned.length > 0) return pinned.map((item) => ({ item, weight: 1 }));
+  }
+
+  const all = DOMAINS.filter(stocked);
+  const wanted = new Set(profile.interests);
+  const inInterest = all.filter((d) => wanted.has(d.id));
+  const rest = all.filter((d) => !wanted.has(d.id));
+
+  // Nothing to tilt toward, or nothing to tilt away from.
+  if (inInterest.length === 0 || rest.length === 0) {
+    return all.map((item) => ({ item, weight: 1 }));
+  }
+
+  return [
+    ...inInterest.map((item) => ({ item, weight: INTEREST_SHARE / inInterest.length })),
+    ...rest.map((item) => ({ item, weight: (1 - INTEREST_SHARE) / rest.length })),
+  ];
 }
 
-/** Bias a pick toward the front of a sorted list without ever locking onto it. */
-function biasedIndex(rng: () => number, length: number): number {
-  return Math.floor(Math.pow(rng(), 1.6) * length) % length;
+/**
+ * Bias a pick toward the front of a sorted list without ever locking onto it.
+ *
+ * The default suits picking the best shipping format for a mechanic. It is
+ * too sharp for picking the mechanic itself: candidate lists there are short
+ * (two to four), where an exponent of 1.6 takes the front item 42-65% of the
+ * time - and since the ranking is identical for everyone with similar skills,
+ * that is the same front item for all of them. Hence the gentler exponent at
+ * that call site.
+ */
+function biasedIndex(rng: () => number, length: number, exponent = 1.6): number {
+  return Math.floor(Math.pow(rng(), exponent) * length) % length;
 }
 
 /**
@@ -151,27 +259,24 @@ function biasedIndex(rng: () => number, length: number): number {
  */
 interface Relaxation {
   bar: DoabilityBar;
-  allDomains: boolean;
   caveat?: string;
 }
 
+// Three tiers, varying only the doability bar. There used to be a fourth that
+// differed only by opening up domains outside the person's interests - now
+// that interests are a weighting rather than a gate, it was identical to the
+// first tier and could never fire. Its caveat went with it: drawing from
+// outside your stated interests is ordinary now, not a failure to apologise
+// for.
 const RELAXATIONS: Relaxation[] = [
-  { bar: { minFit: 0.34, maxGaps: 1 }, allDomains: false },
+  { bar: { minFit: 0.34, maxGaps: 1 } },
   {
     bar: { minFit: 0.24, maxGaps: 2 },
-    allDomains: false,
     caveat:
       "Bigger stretch than you asked for. Your skills and your interests do not overlap much yet, so this reaches further outside what you know than the usual bar allows.",
   },
   {
-    bar: { minFit: 0.34, maxGaps: 1 },
-    allDomains: true,
-    caveat:
-      "Outside the interests you picked. Nothing in your chosen domains was buildable with your current skills, so this comes from a domain that fits them better.",
-  },
-  {
     bar: { minFit: 0.12, maxGaps: 3 },
-    allDomains: true,
     caveat:
       "Well outside both your interests and your current skills. This is the closest the catalogue can get - treat it as a direction, not an assignment.",
   },
@@ -186,8 +291,10 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
 
   const results: GeneratedProblem[] = [];
   const usedDomains = new Set<string>();
-  const usedMechanics = new Set<string>();
-  const usedArtifacts = new Set<string>();
+  // Seeded by the caller so the several passes of one request keep spreading
+  // out instead of each starting over.
+  const usedMechanics = new Set<string>(opts.excludeMechanics ?? []);
+  const usedArtifacts = new Set<string>(opts.excludeArtifacts ?? []);
   // Seeded from what this person has already been issued, so a batch (and
   // every generate/reroll after it) draws frictions they haven't seen yet
   // before it repeats one with a different mechanic attached.
@@ -196,13 +303,16 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
 
   /** One pass at a given relaxation, appending whatever it can find. */
   function draw(relax: Relaxation, mood: Mood | null, caveatOverride?: string): void {
-    const byMechanic = rankCombosByMechanic(profile, relax.bar, mood);
+    const byMechanic = rankCombosByMechanic(
+      profile,
+      relax.bar,
+      mood,
+      opts.clubUsage,
+      opts.personalUsage,
+    );
     if (byMechanic.size === 0) return;
 
-    const stocked = (d: { id: string }) => (frictions.get(d.id)?.length ?? 0) > 0;
-    const domains = relax.allDomains
-      ? DOMAINS.filter(stocked)
-      : candidateDomains(profile, frictions);
+    const domains = candidateDomains(profile, frictions, opts.restrictDomains);
     if (domains.length === 0) return;
 
     const MAX_ATTEMPTS = 1200;
@@ -212,9 +322,10 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
       attempts++;
       const strict = attempts < MAX_ATTEMPTS * 0.55;
 
-      // Spread a batch across the person's interests where possible.
-      const freshDomains = domains.filter((d) => !usedDomains.has(d.id));
-      const domain = pick(rng, freshDomains.length > 0 ? freshDomains : domains);
+      // Spread a batch across domains where possible, then fall back to the
+      // weighted pool so one batch doesn't keep landing in the same place.
+      const freshDomains = domains.filter((d) => !usedDomains.has(d.item.id));
+      const domain = pickWeighted(rng, freshDomains.length > 0 ? freshDomains : domains);
 
       const pool = frictions.get(domain.id);
       if (!pool || pool.length === 0) continue;
@@ -231,7 +342,7 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
         .sort((a, b) => b[0].score - a[0].score);
       if (options.length === 0) continue;
 
-      const mechanicCombos = options[biasedIndex(rng, options.length)];
+      const mechanicCombos = options[biasedIndex(rng, options.length, 1.15)];
       const combo = mechanicCombos[biasedIndex(rng, mechanicCombos.length)];
 
       if (strict && (usedMechanics.has(combo.mechanic.id) || usedArtifacts.has(combo.artifact.id))) {
@@ -241,8 +352,14 @@ export function generateProblems(profile: Profile, opts: GenerateOptions): Gener
       // A twist like "must fit in a single file" is nonsense for a physical
       // prototype - exclude whatever doesn't apply to this artifact rather
       // than picking from the full list unconditionally.
+      // A constraint has to make sense for the thing being shipped: "hand
+      // tools only" is nonsense on a written investigation, and "keyboard and
+      // screen reader" is nonsense on a jig. Artifacts of kind "either" take
+      // constraints from both families.
       const eligibleTwists = TWISTS.filter(
-        (t) => !(t.excludeArtifacts ?? []).includes(combo.artifact.id),
+        (t) =>
+          !(t.excludeArtifacts ?? []).includes(combo.artifact.id) &&
+          (!t.appliesTo || combo.artifact.kind === "either" || t.appliesTo === combo.artifact.kind),
       );
 
       const dna: ProblemDNA = {

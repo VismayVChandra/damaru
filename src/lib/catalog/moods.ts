@@ -46,17 +46,17 @@ export const MOODS: Mood[] = [
     id: "physical",
     label: "Something physical",
     hint: "It exists off the screen.",
-    // Named directly rather than inferred: there is no "shape" field on an
-    // artifact, and `prototype.requires` is deliberately empty because its
-    // mechanic supplies the discipline.
-    matches: (_mechanic, artifact) => artifact.id === "device" || artifact.id === "prototype",
+    matches: (_mechanic, artifact) => artifact.kind === "physical",
   },
   {
     id: "analytical",
     label: "Something to figure out",
     hint: "The answer is the deliverable, not the app around it.",
     matches: (mechanic, artifact) =>
-      artifact.id === "study" || artifact.id === "analysis" || mechanic.requires.includes("data"),
+      artifact.id === "study" ||
+      artifact.id === "analysis" ||
+      artifact.id === "rig" ||
+      mechanic.requires.includes("data"),
   },
 ];
 
