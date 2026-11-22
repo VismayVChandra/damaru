@@ -52,27 +52,41 @@ function RadarRow({ item }: { item: RadarItem }) {
 }
 
 export default async function DiscoverPage() {
-  const viewer = await getCurrentUser();
-  const feed: FeedItem[] = await attachEngagement(await listFeed(300), viewer?.id ?? null);
-
   const sinceISO = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const recentCounts = await getRecentEngagementCounts(feed.map((p) => p.id), sinceISO);
-  const radar = rankRadar(feed, recentCounts, sinceISO).slice(0, 6);
 
+  // Two waves, not seven. Functions run a long way from the database, so a
+  // round trip costs far more than the 3ms the query itself takes - which
+  // made this page's chain of `await`s the whole of its load time. Nothing
+  // here needed to be sequential except where one call's *input* is another's
+  // output, and only two such dependencies exist: everything needs the feed's
+  // ids, and the digest needs to know whether the viewer follows anyone.
+  const [viewer, rawFeed] = await Promise.all([getCurrentUser(), listFeed(300)]);
+  const ids = rawFeed.map((p) => p.id);
+
+  const [feed, recentCounts, signals, followingCount, activity] = await Promise.all([
+    attachEngagement(rawFeed, viewer?.id ?? null) as Promise<FeedItem[]>,
+    getRecentEngagementCounts(ids, sinceISO),
+    getProjectSignals(rawFeed.map((p) => ({ id: p.id, createdAt: p.createdAt }))),
+    viewer ? countFollowing(viewer.id) : Promise.resolve(0),
+    // Fetched alongside the count rather than after it, and discarded if the
+    // viewer turns out to follow nobody. One wasted read for those people is
+    // cheaper than an extra sequential round trip for everyone else.
+    viewer
+      ? listFollowingActivity(viewer.id, sinceISO)
+      : Promise.resolve({ newProblems: [], progressEntries: [] }),
+  ]);
+
+  const radar = rankRadar(feed, recentCounts, sinceISO).slice(0, 6);
   // A plain record rather than a Map: it crosses into a client component, and
   // every other prop in this codebase that does is plain data.
-  const signals = await getProjectSignals(feed.map((p) => ({ id: p.id, createdAt: p.createdAt })));
   const signalsRecord = Object.fromEntries(signals);
 
-  let digest = null;
-  if (viewer) {
-    const followingCount = await countFollowing(viewer.id);
-    const activity =
-      followingCount > 0
-        ? await listFollowingActivity(viewer.id, sinceISO)
-        : { newProblems: [], progressEntries: [] };
-    digest = { followingCount, ...activity };
-  }
+  const digest = viewer
+    ? {
+        followingCount,
+        ...(followingCount > 0 ? activity : { newProblems: [], progressEntries: [] }),
+      }
+    : null;
 
   return (
     <main className="shell">

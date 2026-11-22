@@ -64,6 +64,13 @@ export interface FeedOptions {
   /** Cap per project so one prolific logger can't own the page. */
   perProjectCap?: number;
   limit?: number;
+  /**
+   * ISO timestamp; drop anything older. Narrowing here rather than in the
+   * query lets a caller ask the database once for everything and then try a
+   * recent window and a full one against the same rows - two round trips to
+   * a distant database cost far more than filtering a few hundred objects.
+   */
+  since?: string;
 }
 
 /** A transition this close to creation is the same act - generating a problem
@@ -74,6 +81,9 @@ const SHIP_COLLAPSE_MS = 10 * 60_000;
 
 export function buildActivityFeed(sources: ActivitySources, opts: FeedOptions = {}): ActivityItem[] {
   const perProjectCap = opts.perProjectCap ?? 3;
+  // `since` is applied at the very end, with the cap - filtering earlier
+  // would let a project spend its per-project budget on events that are
+  // about to be discarded.
   const limit = opts.limit ?? 25;
   const { projects } = sources;
   const items: ActivityItem[] = [];
@@ -185,6 +195,7 @@ export function buildActivityFeed(sources: ActivitySources, opts: FeedOptions = 
   const perProject = new Map<string, number>();
   const capped: ActivityItem[] = [];
   for (const item of merged) {
+    if (opts.since && item.at < opts.since) continue;
     const seen = perProject.get(item.project.id) ?? 0;
     if (seen >= perProjectCap) continue;
     perProject.set(item.project.id, seen + 1);

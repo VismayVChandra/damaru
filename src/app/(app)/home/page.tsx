@@ -54,43 +54,59 @@ function Section({
 }
 
 export default async function HomePage() {
-  const user = await getCurrentUser();
+  // Two waves. Functions run a long way from the database, so what this page
+  // costs is almost entirely the number of times it goes and asks - not the
+  // queries, which take about 3ms each. Neither of the two big reads needs to
+  // know who is looking, so they start before the session resolves.
+  const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
+  const [user, feedRaw, allSources] = await Promise.all([
+    getCurrentUser(),
+    listFeed(300),
+    // A young club has weeks of nothing, so the 30-day window was widened to
+    // everything whenever it came back thin. That second call was meant to be
+    // rare and was in fact universal - a club with no build logs never clears
+    // the threshold - so it was a guaranteed extra round trip on every load.
+    // Ask for the whole history once and narrow it in memory, which is free.
+    listClubActivitySources(new Date(0).toISOString()),
+  ]);
+
   // The (app) layout already redirects anyone signed out, so a user is
   // guaranteed here - this is just to satisfy the types.
   if (!user) return null;
 
-  const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
-  const [profile, feedRaw, sources, followingIds, memberOf] = await Promise.all([
+  const recent = buildActivityFeed(allSources, { limit: 25, since });
+  const items = recent.length >= 8 ? recent : buildActivityFeed(allSources, { limit: 25 });
+
+  // Signals only for what actually renders - a few dozen, never all 300.
+  // Selected from the *raw* feed: `attachEngagement` only adds like and
+  // comment counts, and the status and progress this filters on are already
+  // present, so the two no longer have to happen one after the other.
+  const candidates = [
+    ...new Map(
+      [
+        ...feedRaw.filter((p) => ACTIVE_STATUSES.includes(p.status)),
+        ...feedRaw.filter((p) => p.status === "shipped"),
+        ...feedRaw.filter((p) => p.progress?.[0]?.kind === "looking_for_help"),
+      ]
+        .slice(0, 60)
+        .map((p) => [p.id, p] as const),
+    ).values(),
+  ];
+
+  const [profile, followingIds, memberOf, feed, signals] = await Promise.all([
     getProfileById(user.id),
-    listFeed(300),
-    listClubActivitySources(since),
     listFollowingIds(user.id),
     listProblemsWhereMember(user.id),
+    attachEngagement(feedRaw, user.id) as Promise<FeedItem[]>,
+    getProjectSignals(candidates.map((p) => ({ id: p.id, createdAt: p.createdAt }))),
   ]);
 
-  // A young club has weeks of nothing. Rather than show an empty hero, widen
-  // the window to everything - it costs a second call only when it is needed.
-  let items = buildActivityFeed(sources, { limit: 25 });
-  if (items.length < 8) {
-    items = buildActivityFeed(await listClubActivitySources(new Date(0).toISOString()), { limit: 25 });
-  }
-
-  const feed: FeedItem[] = await attachEngagement(feedRaw, user.id);
   const followingSet = new Set(followingIds);
   const memberIds = new Set(memberOf.map((p) => p.id));
 
   const building = feed.filter((p) => ACTIVE_STATUSES.includes(p.status));
   const shipped = feed.filter((p) => p.status === "shipped");
   const needHelp = feed.filter((p) => p.progress?.[0]?.kind === "looking_for_help");
-
-  // Signals only for what actually renders - a few dozen, never all 300.
-  const candidates = [...building, ...shipped, ...needHelp].slice(0, 60);
-  const signals = await getProjectSignals(
-    [...new Map(candidates.map((p) => [p.id, p])).values()].map((p) => ({
-      id: p.id,
-      createdAt: p.createdAt,
-    })),
-  );
 
   const byActivity = (a: FeedItem, b: FeedItem) =>
     (signals.get(b.id)?.lastActivityAt ?? b.createdAt).localeCompare(
