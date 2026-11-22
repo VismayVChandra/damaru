@@ -294,6 +294,35 @@ This exists because stored prose is frozen: the database can only ever report
 on briefs written by the old composer, so simulation is the only honest source
 of "after" numbers.
 
+### Measuring what happens next
+
+The audit measures what the generator *can* produce. `/admin/funnel` measures
+what people then did with it — the question that actually decides whether any
+of the rest is worth building:
+
+```
+Generated → Triaged → Committed → Shipped
+```
+
+Plus, separately: how many committed projects ever got a build log (an
+orthogonal fact, not a stage — a project can be marked shipped without one),
+whether stalled projects are measurably bigger than finished ones, the effort
+mix across everything issued, who came back on a second day, and which
+mechanics and artifacts were really handed out rather than simulated.
+
+`lib/funnel.ts` is a pure function over plain rows, in the same spirit as
+`activity-feed.ts`, so every number has exactly one definition and the page
+and the CLI cannot disagree. The CLI is:
+
+```bash
+node --import ./src/scripts/register-alias.mjs src/scripts/funnel-report.ts
+```
+
+Admin-gated despite containing no private data, because it is per-member
+outcomes — "who in the club has finished nothing" is not something the club
+should be able to browse. Same reasoning as `pairing.ts` refusing to produce
+a sortable score.
+
 ---
 
 ## Auth and data access
@@ -598,6 +627,7 @@ src/
   scripts/
     audit-catalogue.ts     measures whether the generator produces varied,
                              buildable briefs - gates on coverage + prose lints
+    funnel-report.ts        the admin funnel page, in the terminal
     alias-hooks.mjs         ESM resolve hook so plain `node` understands `@/`
     register-alias.mjs       the --import entry point that installs it
   app/
@@ -615,6 +645,7 @@ src/
       collaborate/              browse problems open to collaborators + your requests
       submit/                    propose a friction
       admin/frictions/            review queue (is_admin only)
+      admin/funnel/                what happens after a brief is issued (is_admin only)
     browse/                 public "Explore" club feed (no auth required)
     discover/               public: filter by domain/skill + radar + weekly digest
     showcase/               public: shipped work only, as cover cards
@@ -647,6 +678,7 @@ src/
       frictions/                GET/POST your own submissions
       admin/frictions/           GET review queue + feedback tally (is_admin only)
       admin/frictions/[id]/       PATCH accept/reject
+      admin/funnel/              GET the generated -> shipped funnel (is_admin only)
       pair/                    GET complements + recurring gap
       stats/                  GET counts
   components/
@@ -658,6 +690,7 @@ src/
     ActivityFeed.tsx           renders the merged club activity stream
     DiscoverExplorer.tsx        Discover's filters + radar, URL-backed
     WeeklyDigest.tsx             the last seven days, summarised
+    FunnelReport.tsx              draws the funnel; takes a report, decides nothing
     BuildLog.tsx               typed build-log timeline + composer, two densities
     TeamSection.tsx             a project's team list, owner-managed
     OpenRoles.tsx               published roles + apply flow + the owner's publish form
@@ -674,6 +707,7 @@ src/
     activity.ts              staleness + checklist progress (shared client/server)
     activity-feed.ts          merges five source tables into one ranked event stream
     discover.ts               Discover's skill filter + Project Radar tiers
+    funnel.ts                 generated -> shipped outcomes, as a pure function
     match.ts                  "projects you might want in on", scored for the viewer
     pairing.ts                complement + recurring-gap logic
     client.ts                 tiny fetch wrapper client components use to call the API

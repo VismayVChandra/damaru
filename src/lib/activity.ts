@@ -65,8 +65,18 @@ export function timeAgo(iso: string): string {
   if (days < 7) return `${days}d ago`;
   if (days < 35) return `${Math.floor(days / 7)}w ago`;
 
-  return then.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return `${then.getDate()} ${MONTHS[then.getMonth()]}`;
 }
+
+/**
+ * Formatted by hand rather than with `toLocaleDateString(undefined, ...)`.
+ * An undefined locale resolves to whatever the *runtime* prefers, and the
+ * server and the browser are different runtimes - Node rendered "4 Oct"
+ * while Chrome rendered "Oct 4", so every server-rendered date was a
+ * hydration mismatch and React threw away and re-rendered the whole tree.
+ * A fixed table is also immune to a Node build without full ICU.
+ */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Best-effort cover for a project: the newest build-log entry carrying an
  * image. There is no dedicated cover column, and `progress` already arrives

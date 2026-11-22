@@ -48,7 +48,12 @@ export default function Nav() {
   const links = [
     ...(me?.user ? SIGNED_IN_LINKS : []),
     ...LINKS,
-    ...(me?.profile?.isAdmin ? [{ href: "/admin/frictions", label: "Review" }] : []),
+    ...(me?.profile?.isAdmin
+      ? [
+          { href: "/admin/frictions", label: "Review" },
+          { href: "/admin/funnel", label: "Funnel" },
+        ]
+      : []),
   ];
 
   return (

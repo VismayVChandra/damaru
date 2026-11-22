@@ -378,6 +378,149 @@ textarea:focus-visible,
   color: var(--ember);
 }
 
+/* --- Funnel instrumentation (admin) ---------------------------------------
+   Bars are proportional to the TOP of the funnel, not to each other, so the
+   drop-off is the thing the eye lands on. A bar scaled to its own stage would
+   make every step look full. */
+
+.funnel-step {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.funnel-step:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.funnel-step:first-child {
+  padding-top: 0;
+}
+
+.funnel-step-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.funnel-step-label {
+  font-weight: 600;
+}
+
+.funnel-step-n {
+  font-family: var(--mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.funnel-step-drop {
+  color: var(--text-faint);
+}
+
+.funnel-step-blurb {
+  margin: 7px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.funnel-bar {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.funnel-bar-fill {
+  height: 100%;
+  min-width: 2px;
+  background: linear-gradient(90deg, var(--ember), color-mix(in srgb, var(--ember) 55%, var(--cool)));
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.data-table th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 500;
+  padding: 0 10px 8px 0;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 7px 10px 7px 0;
+  border-top: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+/* Someone with a profile who has never generated is a different kind of
+   fact from someone with a zero - worth seeing without reading the row. */
+.data-table tr[data-idle="true"] td {
+  color: var(--text-faint);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 12px 0 0;
+  font-size: 13.5px;
+}
+
+.kv dt {
+  color: var(--text-muted);
+}
+
+.kv dd {
+  margin: 0;
+  text-align: right;
+}
+
+.plain-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 13.5px;
+}
+
+.plain-list li {
+  padding: 4px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.plain-list li:first-child {
+  border-top: none;
+}
+
+/* Not `.row`: that wraps, which drops the percentage onto its own line the
+   moment a mechanic label is long - and the long ones are exactly the rows
+   worth reading. The label clamps instead, and the number never moves. */
+.conc-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.conc-row > span:first-child {
+  min-width: 0;
+}
+
+.conc-row > span:last-child {
+  flex: none;
+  white-space: nowrap;
+}
+
 /* --- Theme switch ----------------------------------------------------------
    Sized to match .nav-toggle exactly, so the two sit as one pair of controls
    on mobile where both are visible. */

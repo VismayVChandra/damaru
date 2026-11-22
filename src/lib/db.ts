@@ -1,6 +1,7 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { ACTIVE_STATUSES, COLLAB_OPEN_STATUSES, COMMITTED_STATUSES } from "@/lib/status";
+import type { FunnelProblem, FunnelSources } from "@/lib/funnel";
 import type {
   AppNotification,
   BuildLogKind,
@@ -1156,6 +1157,69 @@ export async function countActiveByProfile(): Promise<Map<string, number>> {
     counts.set(id, (counts.get(id) ?? 0) + 1);
   }
   return counts;
+}
+
+/**
+ * Everything `buildFunnel()` needs, in three reads.
+ *
+ * Selects columns rather than `*`: the payload is the largest thing in the
+ * table and this only wants five values out of it, so the rows come back
+ * narrow even as the club grows. Shaping happens here so `lib/funnel.ts`
+ * stays a pure function over plain data with no Supabase types in it.
+ */
+export async function getFunnelSources(): Promise<FunnelSources> {
+  const admin = getAdminClient();
+  const [problemsRes, logsRes, profilesRes] = await Promise.all([
+    admin
+      .from("problems")
+      .select("id,profile_id,status,created_at,status_changed_at,inspired_by_problem_id,payload"),
+    admin.from("progress_entries").select("problem_id,created_at,kind"),
+    admin.from("profiles").select("id,handle,created_at"),
+  ]);
+
+  if (problemsRes.error) throw problemsRes.error;
+  if (logsRes.error) throw logsRes.error;
+  if (profilesRes.error) throw profilesRes.error;
+
+  const problems: FunnelProblem[] = (problemsRes.data ?? []).map((row) => {
+    const r = row as {
+      id: string;
+      profile_id: string;
+      status: Problem["status"];
+      created_at: string;
+      status_changed_at: string | null;
+      inspired_by_problem_id: string | null;
+      payload: ProblemPayload;
+    };
+    return {
+      id: r.id,
+      profileId: r.profile_id,
+      status: r.status,
+      createdAt: r.created_at,
+      statusChangedAt: r.status_changed_at ?? null,
+      isFork: Boolean(r.inspired_by_problem_id),
+      domainId: r.payload?.dna?.domainId ?? "unknown",
+      mechanicId: r.payload?.dna?.mechanicId ?? "unknown",
+      artifactId: r.payload?.dna?.artifactId ?? "unknown",
+      fitScore: r.payload?.fit?.score ?? 0,
+      difficulty: r.payload?.fit?.difficulty ?? 0,
+      // Pre-dates the field on the very oldest rows; bucket rather than drop,
+      // so the estimate mix still adds up to the number of problems.
+      estimate: r.payload?.fit?.estimate ?? "unrecorded",
+    };
+  });
+
+  return {
+    problems,
+    logs: (logsRes.data ?? []).map((row) => {
+      const r = row as { problem_id: string; created_at: string; kind: BuildLogKind | null };
+      return { problemId: r.problem_id, createdAt: r.created_at, kind: r.kind ?? "progress" };
+    }),
+    members: (profilesRes.data ?? []).map((row) => {
+      const r = row as { id: string; handle: string; created_at: string };
+      return { id: r.id, handle: r.handle, createdAt: r.created_at };
+    }),
+  };
 }
 
 // --- Collaboration ---------------------------------------------------------
