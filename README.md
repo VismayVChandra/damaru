@@ -607,9 +607,56 @@ matches is visible rather than assumed.
    project's **Settings → Environment Variables**.
 4. Deploy.
 
-No other configuration needed — Vercel detects Next.js automatically, and there is
-no filesystem dependency left (that was the whole reason for this migration: the
-SQLite version could not run on Vercel's read-only, ephemeral filesystem at all).
+Vercel detects Next.js automatically, and there is no filesystem dependency
+left (that was the whole reason for this migration: the SQLite version could
+not run on Vercel's read-only, ephemeral filesystem at all).
+
+### Put the functions next to the database
+
+`vercel.json` pins the function region, and it is the single highest-impact
+line in this repo:
+
+```json
+{ "regions": ["icn1"] }
+```
+
+**`icn1` is Seoul because the Supabase project is in `ap-northeast-2`, which
+is Seoul.** If you move the database, move this with it, or the site gets
+slow in a way that looks like a code problem and is not.
+
+The reasoning, measured rather than assumed. Vercel defaults new projects to
+`iad1` (Washington). With the database in Seoul, that put an ocean between
+the two, and `x-envoy-upstream-service-time` showed the database answering
+in **3ms** while a round trip to it cost about **700ms**:
+
+| hop | cost |
+|---|---|
+| member → nearest Vercel edge | ~93ms |
+| edge → function | ~10ms |
+| **function → Supabase and back** | **~700ms** |
+
+So a page costs roughly "number of times it asks the database" × 700ms,
+and `/discover` — which asked seven times in a row — took 4.0 seconds.
+
+Seoul rather than Mumbai, despite every member being in India, because a
+page makes **one** round trip to the member and **several** to the database.
+Co-locating with the data wins: one extra ~100ms hop over Vercel's backbone
+buys you ~2ms database calls instead of ~120ms ones.
+
+The genuinely ideal setup is both in Mumbai — database in `ap-south-1`,
+functions in `bom1` — which removes the remaining hop as well. That needs a
+Supabase project migration (dump, restore, new URL and keys), so it is a
+deliberate move rather than a config change.
+
+### Why the pages are shaped the way they are
+
+Because a round trip is ~200x the cost of the query, server components here
+are written as **two waves at most**: everything that does not depend on
+another call's *output* goes in one `Promise.all`. `/home` and `/discover`
+both read that way on purpose, and `buildActivityFeed`'s `since` option
+exists so a caller can ask the database once for all history and try two
+different windows against the same rows in memory. If you add a sequential
+`await` to a page, you are adding most of a second to it.
 
 ---
 
