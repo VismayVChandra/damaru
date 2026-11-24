@@ -533,6 +533,46 @@ A seat filling is checked twice — once when someone applies, once again right
 before the owner accepts — since two people can apply to the same one-seat
 role before either is answered.
 
+### Asking for the build log
+
+The funnel found that fifteen projects had been kept and none had ever written
+a single build-log line, which is the table the activity feed, Project Radar
+and the weekly digest are all built on. Writing one was already easy; nobody
+was being asked. So `Home` and `My problems` carry one card, at most, asking
+about one project:
+
+| Situation | The question |
+|---|---|
+| Kept two days ago, nothing logged | "What's the first thing you did?" — with the brief's own starting angle behind a disclosure, for anyone stuck at the very start |
+| Has a log, but not in a week | "What has moved since?" |
+| Nothing at all for three weeks | "Still on it, or time to let it go?" — and a **Let this one go** button |
+
+The card posts through the same `POST /api/problems/[id]/progress` the
+project page does, so there is still exactly one way an entry comes into
+being. Three details are deliberate:
+
+- **One card, never a list.** A pile of overdue projects reads as a to-do list
+  with a guilt column. It picks the most recoverable project first.
+- **"Not now" quiets all of it for three days**, not one project — handing
+  someone the next overdue thing the moment they decline the first is the
+  inbox feeling this exists to avoid. It is a cookie rather than localStorage
+  so the server can leave the card out of the HTML; otherwise Home would render
+  it for everyone and then remove it for people who had snoozed it.
+- **A stalled project gets an honest exit.** Asking someone about a brief they
+  kept six weeks ago is the wrong question, and a nudge with no way out is
+  just nagging. "Let this one go" moves it to `passed`, which is a better
+  record than a project that quietly died.
+
+Projects kept before `status_changed_at` existed carry no date for when they
+were kept, so the only honest age is "at most N days". For those the card
+leaves the number out rather than assert one it cannot support.
+
+`lib/nudge.ts` is a pure function like `funnel.ts`. It shares `QUIET_DAYS` and
+`STALL_DAYS` with the funnel and the dashboard's "gone quiet" count, from
+`lib/status.ts`, so the page that measures stalling and the prompt reacting
+to it cannot disagree about what it means. Whether it works is already
+visible on `/admin/funnel`: "of committed projects have a build log".
+
 ### Notifications
 
 A bell in the nav with an unread badge: new follower, someone liked or commented on
@@ -737,6 +777,7 @@ src/
     ActivityFeed.tsx           renders the merged club activity stream
     DiscoverExplorer.tsx        Discover's filters + radar, URL-backed
     WeeklyDigest.tsx             the last seven days, summarised
+    BuildLogNudge.tsx            the one question about one project: what moved?
     FunnelReport.tsx              draws the funnel; takes a report, decides nothing
     BuildLog.tsx               typed build-log timeline + composer, two densities
     TeamSection.tsx             a project's team list, owner-managed
@@ -755,6 +796,7 @@ src/
     activity-feed.ts          merges five source tables into one ranked event stream
     discover.ts               Discover's skill filter + Project Radar tiers
     funnel.ts                 generated -> shipped outcomes, as a pure function
+    nudge.ts                  who to ask "what moved?", and what to ask - pure
     match.ts                  "projects you might want in on", scored for the viewer
     pairing.ts                complement + recurring-gap logic
     client.ts                 tiny fetch wrapper client components use to call the API
@@ -859,6 +901,13 @@ person, that is probably right; it would not be on a larger tool.
 actual database) and `src/lib/supabase/types.ts` (the hand-written TypeScript
 `Database` type supabase-js needs to type-check inserts and updates) have to stay
 in sync manually — there is no code generation step wired up.
+
+**The build-log nudge only works if someone opens the app.** There is no email
+or push behind it, so a member who has stopped visiting is never asked. That
+is the honest limit of a passive prompt, and the next step if it is not
+enough — but email means a sender domain, deliverability, and an unsubscribe
+path, which is a much larger commitment than a card. It also only asks the
+project's owner, not its team.
 
 **Notifications poll, they don't push.** `NotificationBell` checks every 45 seconds
 and on mount - simple, and fine at club scale, but a new follower or comment can take

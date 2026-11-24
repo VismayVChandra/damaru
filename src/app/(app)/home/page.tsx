@@ -1,5 +1,7 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import ActivityFeed from "@/components/ActivityFeed";
+import BuildLogNudge from "@/components/BuildLogNudge";
 import ProjectCard from "@/components/ProjectCard";
 import {
   attachEngagement,
@@ -8,10 +10,12 @@ import {
   listClubActivitySources,
   listFeed,
   listFollowingIds,
+  listProblemsForProfile,
   listProblemsWhereMember,
 } from "@/lib/db";
 import { buildActivityFeed, filterByFollowing } from "@/lib/activity-feed";
 import { rankMatches } from "@/lib/match";
+import { isSnoozed, NUDGE_SNOOZE_COOKIE, pickNudge } from "@/lib/nudge";
 import { ACTIVE_STATUSES } from "@/lib/status";
 import { getCurrentUser } from "@/lib/supabase/server";
 import type { Problem } from "@/lib/types";
@@ -93,13 +97,23 @@ export default async function HomePage() {
     ).values(),
   ];
 
-  const [profile, followingIds, memberOf, feed, signals] = await Promise.all([
+  // Read before the wave so a snoozed viewer costs nothing: no query, no card.
+  const snoozed = isSnoozed((await cookies()).get(NUDGE_SNOOZE_COOKIE)?.value);
+
+  const [profile, followingIds, memberOf, feed, signals, own] = await Promise.all([
     getProfileById(user.id),
     listFollowingIds(user.id),
     listProblemsWhereMember(user.id),
     attachEngagement(feedRaw, user.id) as Promise<FeedItem[]>,
     getProjectSignals(candidates.map((p) => ({ id: p.id, createdAt: p.createdAt }))),
+    // The viewer's own projects, asked for directly rather than picked out of
+    // `feedRaw`: that is capped at the newest 300 club-wide, so once the club
+    // outgrew it someone's older project would silently stop being nudged.
+    // It rides in this wave, so it adds no round trip.
+    snoozed ? Promise.resolve([] as Problem[]) : listProblemsForProfile(user.id),
   ]);
+
+  const nudge = pickNudge(own, user.id);
 
   const followingSet = new Set(followingIds);
   const memberIds = new Set(memberOf.map((p) => p.id));
@@ -155,6 +169,8 @@ export default async function HomePage() {
           Discover projects
         </Link>
       </div>
+
+      <BuildLogNudge nudge={nudge} />
 
       {items.length > 0 ? (
         <Section title="Right now" blurb="Everything that has actually moved, newest first.">

@@ -52,6 +52,16 @@ export const COLLAB_OPEN_STATUSES: ProjectStatus[] = ["idea", "prototype", "buil
 /** Finished business - staleness and "open to collaborators" are both moot. */
 export const SETTLED: ProjectStatus[] = ["shipped", "passed"];
 
+/**
+ * How long a live project can go without a sign of life before it is called
+ * quiet, and then stalled. One definition, because three things react to the
+ * same boundary - the dashboard's "gone quiet" count, the build-log nudge, and
+ * the funnel's finished-vs-stalled comparison - and a prompt that disagrees
+ * with the page measuring it is worse than either alone.
+ */
+export const QUIET_DAYS = 7;
+export const STALL_DAYS = 21;
+
 export const BUILD_LOG_KINDS: BuildLogKind[] = [
   "progress",
   "blocked",

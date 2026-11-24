@@ -378,6 +378,108 @@ textarea:focus-visible,
   color: var(--ember);
 }
 
+/* --- Build-log nudge -------------------------------------------------------
+   A card, not a banner: it sits in the flow of the page and goes away when
+   answered, rather than pinning itself over the top of what someone came to
+   do. The ember edge is the one place it asks for attention. */
+
+/* `.card.nudge`, not `.nudge`: `.card` sets a border shorthand and is defined
+   later in this file, so a bare `.nudge` loses and the ember edge silently
+   never appears. Specificity rather than source order, so moving this block
+   cannot break it again. */
+.card.nudge {
+  border-left: 3px solid var(--ember);
+  margin-top: 22px;
+}
+
+.nudge-title {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 10px;
+}
+
+.nudge-lead {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.5;
+}
+
+.nudge-sub {
+  margin: 6px 0 14px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+/* The only text on the card that reads as a result rather than a question. */
+.nudge[role="status"] .nudge-lead {
+  font-weight: 600;
+}
+
+.nudge[role="status"] .nudge-sub {
+  margin-bottom: 0;
+}
+
+/* The brief's own starting angle: offered behind a disclosure, because the
+   brief itself keeps it hidden by default - this is for someone who is stuck
+   at the very start, not a hint handed to everyone. */
+.nudge-angle {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+}
+
+.nudge-angle summary {
+  cursor: pointer;
+  color: var(--cool);
+  width: fit-content;
+}
+
+.nudge-angle p {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.nudge .chip-wrap {
+  margin-bottom: 10px;
+}
+
+.nudge-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ember);
+}
+
+/* Quiet on purpose. "Not now" has to be as easy to find as "Log it", but it
+   must not compete with it - the point is that declining costs nothing. */
+.nudge-exits {
+  display: flex;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+.nudge-exit {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--text-faint);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.nudge-exit:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.nudge-exit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* --- Funnel instrumentation (admin) ---------------------------------------
    Bars are proportional to the TOP of the funnel, not to each other, so the
    drop-off is the thing the eye lands on. A bar scaled to its own stage would

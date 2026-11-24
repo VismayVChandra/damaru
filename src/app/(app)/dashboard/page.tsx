@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import BuildLogNudge, { readSnoozeCookie } from "@/components/BuildLogNudge";
 import ProblemCard from "@/components/ProblemCard";
 import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { checklistProgress, idleDays } from "@/lib/activity";
+import { isSnoozed, pickNudge } from "@/lib/nudge";
 import { recurringGap } from "@/lib/pairing";
 import { ACTIVE_STATUSES, STATUS_FLOW, STATUS_LABEL } from "@/lib/status";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
@@ -25,16 +27,22 @@ export default function DashboardPage() {
 
   // Auth is already guaranteed by the (app) layout - the only thing left to
   // find out is whether this account has a profile yet.
-  useEffect(() => {
-    api<{ problems: Problem[]; joined: Problem[]; profile: Profile | null }>("/api/problems")
+  const load = useCallback(() => {
+    return api<{ problems: Problem[]; joined: Problem[]; profile: Profile | null }>("/api/problems")
       .then(({ problems, joined, profile }) => {
         setProblems(problems);
         setJoined(joined ?? []);
         setProfile(profile);
         setState(profile ? "ready" : "no-profile");
       })
-      .catch(() => setState("no-profile"));
+      // A failed background refresh (after the nudge saves something) should
+      // not blank a page that was already showing fine.
+      .catch(() => setState((prev) => (prev === "loading" ? "no-profile" : prev)));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: problems.length };
@@ -54,6 +62,13 @@ export default function DashboardPage() {
   }, [problems]);
 
   const gap = useMemo(() => recurringGap(problems), [problems]);
+
+  // Only ever read once the page has loaded (it renders a spinner first), so
+  // touching document.cookie here cannot disagree with the server render.
+  const nudge = useMemo(
+    () => (profile && !isSnoozed(readSnoozeCookie()) ? pickNudge(problems, profile.id) : null),
+    [problems, profile],
+  );
 
   const shown = filter === "all" ? problems : problems.filter((p) => p.status === filter);
 
@@ -98,6 +113,8 @@ export default function DashboardPage() {
           ? "You have not been issued anything yet."
           : "Tick off requirements as you clear them and log what moved. The club feed leads with shipped work, so this is what puts you on it."}
       </p>
+
+      <BuildLogNudge nudge={nudge} onResolved={load} />
 
       {problems.length > 0 && (
         <div className="row section" style={{ gap: 28 }}>

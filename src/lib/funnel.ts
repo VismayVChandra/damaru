@@ -1,4 +1,4 @@
-import { COMMITTED_STATUSES } from "@/lib/status";
+import { COMMITTED_STATUSES, STALL_DAYS } from "@/lib/status";
 import type { BuildLogKind, ProjectStatus } from "@/lib/types";
 
 /**
@@ -160,13 +160,12 @@ function concentrationOf(counts: Map<string, number>, total: number, topN = 6): 
   };
 }
 
-/**
- * "Stalled" is deliberately generous: committed, not shipped, and nothing has
- * happened on it for three weeks. A student project with no movement for
- * three weeks over a term is not resting, and calling it active would be the
- * flattering read rather than the true one.
- */
-const STALL_DAYS = 21;
+// "Stalled" (STALL_DAYS, in status.ts) is deliberately generous: committed,
+// not shipped, and nothing has happened on it for three weeks. A student
+// project with no movement for three weeks over a term is not resting, and
+// calling it active would be the flattering read rather than the true one.
+// The build-log nudge reads the same constant, so the page measuring stalling
+// and the prompt reacting to it cannot disagree about what it means.
 
 // --- The report -----------------------------------------------------------
 

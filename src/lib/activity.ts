@@ -1,5 +1,5 @@
 import type { Checklist, Problem } from "@/lib/types";
-import { SETTLED } from "@/lib/status";
+import { QUIET_DAYS, SETTLED } from "@/lib/status";
 
 /** Most recent sign of life: a progress entry if there is one, else issue date. */
 export function lastActivityAt(problem: Problem): string {
@@ -19,7 +19,7 @@ export function daysSince(iso: string): number {
 export function idleDays(problem: Problem): number | null {
   if (SETTLED.includes(problem.status)) return null;
   const days = daysSince(lastActivityAt(problem));
-  return days >= 7 ? days : null;
+  return days >= QUIET_DAYS ? days : null;
 }
 
 export function checklistKeys(problem: Problem): string[] {
