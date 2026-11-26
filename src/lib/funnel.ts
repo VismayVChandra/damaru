@@ -40,18 +40,33 @@ export interface FunnelLog {
   problemId: string;
   createdAt: string;
   kind: BuildLogKind;
+  /** Who wrote it, where recorded. Older rows did not record this; they fall
+   *  back to the project's owner. */
+  authorId?: string | null;
+}
+
+export interface FunnelComment {
+  problemId: string;
+  profileId: string;
 }
 
 export interface FunnelMember {
   id: string;
   handle: string;
   createdAt: string;
+  /** An AI or testing account. Kept out of the club's numbers and reported
+   *  separately, so the record shows how much was done by whom. */
+  isTest?: boolean;
 }
 
 export interface FunnelSources {
   problems: FunnelProblem[];
   logs: FunnelLog[];
   members: FunnelMember[];
+  comments?: FunnelComment[];
+  /** False until migration 013 is applied: the flag does not exist yet, so
+   *  nobody can be told apart and everything is counted as the club. */
+  testFlagAvailable?: boolean;
 }
 
 // --- Output ---------------------------------------------------------------
@@ -106,7 +121,34 @@ export interface Concentration {
   leaderShare: number;
 }
 
-export interface FunnelReport {
+/**
+ * What the AI and test accounts did, kept apart from the club's numbers.
+ * Same funnel, same definitions - so the two can be read side by side - plus
+ * the two things only an account like this can say about itself: how much of
+ * the whole record it is, and whether any real member reacted to it.
+ */
+export interface TestSection {
+  /** False until migration 013 is applied. */
+  flagAvailable: boolean;
+  accounts: MemberRow[];
+  generated: number;
+  stages: FunnelStage[];
+  evidence: EvidenceOfWork;
+  commentsWritten: number;
+  /** Comments real members left on these accounts' projects - the only
+   *  evidence here that a person, rather than the account itself, cared. */
+  commentsFromMembers: number;
+  /** Their share of everything on the record, club plus test. */
+  shareOfAll: { generated: number; logs: number };
+}
+
+export interface FunnelReport extends FunnelCore {
+  /** Everything above describes the club only. This is the rest. */
+  test: TestSection;
+}
+
+/** The numbers for one population of people. */
+export interface FunnelCore {
   generatedTotal: number;
   stages: FunnelStage[];
   evidence: EvidenceOfWork;
@@ -170,6 +212,55 @@ function concentrationOf(counts: Map<string, number>, total: number, topN = 6): 
 // --- The report -----------------------------------------------------------
 
 export function buildFunnel(sources: FunnelSources, now = new Date()): FunnelReport {
+  const testIds = new Set(sources.members.filter((m) => m.isTest).map((m) => m.id));
+  const owner = new Map(sources.problems.map((p) => [p.id, p.profileId]));
+
+  // An entry belongs to the test side if a test account wrote it, or if it sits
+  // on a test account's project. Everything else is the club's.
+  const isTestLog = (l: FunnelLog) =>
+    testIds.has(l.authorId ?? "") || testIds.has(owner.get(l.problemId) ?? "");
+
+  const clubSources = {
+    problems: sources.problems.filter((p) => !testIds.has(p.profileId)),
+    logs: sources.logs.filter((l) => !isTestLog(l)),
+    members: sources.members.filter((m) => !m.isTest),
+  };
+  const testSources = {
+    problems: sources.problems.filter((p) => testIds.has(p.profileId)),
+    logs: sources.logs.filter(isTestLog),
+    members: sources.members.filter((m) => m.isTest),
+  };
+
+  const club = buildCore(clubSources, now);
+  const test = buildCore(testSources, now);
+
+  const comments = sources.comments ?? [];
+  const share = (part: number, whole: number) => (whole ? part / whole : 0);
+
+  return {
+    ...club,
+    test: {
+      flagAvailable: sources.testFlagAvailable ?? true,
+      accounts: test.members,
+      generated: test.generatedTotal,
+      stages: test.stages,
+      evidence: test.evidence,
+      commentsWritten: comments.filter((c) => testIds.has(c.profileId)).length,
+      commentsFromMembers: comments.filter(
+        (c) => testIds.has(owner.get(c.problemId) ?? "") && !testIds.has(c.profileId),
+      ).length,
+      shareOfAll: {
+        generated: share(test.generatedTotal, sources.problems.length),
+        logs: share(testSources.logs.length, sources.logs.length),
+      },
+    },
+  };
+}
+
+function buildCore(
+  sources: { problems: FunnelProblem[]; logs: FunnelLog[]; members: FunnelMember[] },
+  now: Date,
+): FunnelCore {
   const { problems, logs, members } = sources;
   const total = problems.length;
 

@@ -27,14 +27,22 @@ export default function FunnelReport({ report }: { report: Report }) {
 
   if (report.generatedTotal === 0) {
     return (
-      <div className="empty">
-        <p>Nothing generated yet — there is no funnel to measure.</p>
-      </div>
+      <>
+        <div className="empty">
+          <p>No member has generated anything yet — there is no club funnel to measure.</p>
+        </div>
+        <TestSectionView t={report.test} />
+      </>
     );
   }
 
   return (
     <>
+      <p className="muted" style={{ marginTop: 14 }}>
+        Everything on this page counts <strong>club members only</strong>. AI and testing accounts
+        are reported separately at the bottom, so the record shows how much was done by whom.
+      </p>
+
       {/* --- The ladder ------------------------------------------------- */}
       <section className="section">
         <h2>The funnel</h2>
@@ -220,7 +228,118 @@ export default function FunnelReport({ report }: { report: Report }) {
           accumulate rather than to change retroactively.
         </p>
       </section>
+
+      <TestSectionView t={report.test} />
     </>
+  );
+}
+
+/**
+ * The AI and testing accounts, as their own population. Same stages and same
+ * definitions as the club's funnel above, so the two read side by side. The
+ * point is a record: how much of what exists was done by a person and how much
+ * by an account that cannot, for instance, ever be a treasurer's customer.
+ */
+function TestSectionView({ t }: { t: Report["test"] }) {
+  if (!t.flagAvailable) {
+    return (
+      <section className="section">
+        <h2>AI and test accounts</h2>
+        <div className="notice insight" style={{ marginTop: 14 }}>
+          <strong>Not separated yet.</strong> Run{" "}
+          <code>supabase/migrations/013_test_accounts.sql</code> in the Supabase SQL editor. Until
+          then there is no way to tell an AI account from a member, so everything above includes
+          them.
+        </div>
+      </section>
+    );
+  }
+
+  if (t.accounts.length === 0) {
+    return (
+      <section className="section">
+        <h2>AI and test accounts</h2>
+        <p className="muted" style={{ marginTop: 4 }}>
+          None are flagged. Set <code>is_test</code> on a profile and its activity moves here
+          instead of into the club&rsquo;s numbers.
+        </p>
+      </section>
+    );
+  }
+
+  const [, triaged, committed, shipped] = t.stages;
+
+  return (
+    <section className="section">
+      <h2>AI and test accounts</h2>
+      <p className="muted" style={{ marginTop: 4 }}>
+        Kept on the record, kept out of the club&rsquo;s numbers above. Counted the same way, so
+        the two compare directly.
+      </p>
+
+      <div className="meter-grid" style={{ marginTop: 14 }}>
+        <Stat
+          n={pct(t.shareOfAll.generated)}
+          label={`of all briefs on record were theirs (${t.generated})`}
+        />
+        <Stat n={pct(t.shareOfAll.logs)} label={`of all build logs (${t.evidence.logs})`} />
+        <Stat n={String(t.commentsWritten)} label="comments they wrote" />
+        <Stat
+          n={String(t.commentsFromMembers)}
+          label="comments real members left on their work"
+        />
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="block-label">What they did with those briefs</div>
+        <dl className="kv">
+          <dt>Generated</dt>
+          <dd className="mono">{t.generated}</dd>
+          <dt>Triaged</dt>
+          <dd className="mono">{triaged?.count ?? 0}</dd>
+          <dt>Kept as projects</dt>
+          <dd className="mono">{committed?.count ?? 0}</dd>
+          <dt>Marked shipped</dt>
+          <dd className="mono">{shipped?.count ?? 0}</dd>
+        </dl>
+      </div>
+
+      <div className="card" style={{ marginTop: 14, overflowX: "auto" }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Gen</th>
+              <th>Triaged</th>
+              <th>Kept</th>
+              <th>Logged</th>
+              <th>Shipped</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {t.accounts.map((m) => (
+              <tr key={m.handle}>
+                <td className="mono">@{m.handle}</td>
+                <td>{m.generated}</td>
+                <td>{m.triaged}</td>
+                <td>{m.committed}</td>
+                <td>{m.logged}</td>
+                <td>{m.shipped}</td>
+                <td className="muted">{m.lastSeen ? timeAgo(m.lastSeen) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {t.commentsFromMembers === 0 && (
+        <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
+          No member has reacted to this work yet. Output that no person has responded to is the
+          weakest kind of evidence here.
+        </p>
+      )}
+    </section>
   );
 }
 

@@ -1169,16 +1169,29 @@ export async function countActiveByProfile(): Promise<Map<string, number>> {
  */
 export async function getFunnelSources(): Promise<FunnelSources> {
   const admin = getAdminClient();
-  const [problemsRes, logsRes, profilesRes] = await Promise.all([
+  const [problemsRes, logsRes, profilesWithFlag, commentsRes] = await Promise.all([
     admin
       .from("problems")
       .select("id,profile_id,status,created_at,status_changed_at,inspired_by_problem_id,payload"),
-    admin.from("progress_entries").select("problem_id,created_at,kind"),
-    admin.from("profiles").select("id,handle,created_at"),
+    admin.from("progress_entries").select("problem_id,created_at,kind,profile_id"),
+    admin.from("profiles").select("id,handle,created_at,is_test"),
+    admin.from("problem_comments").select("problem_id,profile_id"),
   ]);
 
   if (problemsRes.error) throw problemsRes.error;
   if (logsRes.error) throw logsRes.error;
+  if (commentsRes.error) throw commentsRes.error;
+
+  // `is_test` arrives with migration 013. Until it is applied the column does
+  // not exist and Postgres says so (42703); fall back to counting everyone as
+  // the club and let the page say why, rather than taking the whole admin page
+  // down in the gap between deploying this and running the migration.
+  let profilesRes = profilesWithFlag;
+  let testFlagAvailable = true;
+  if (profilesWithFlag.error?.code === "42703") {
+    testFlagAvailable = false;
+    profilesRes = (await admin.from("profiles").select("id,handle,created_at")) as typeof profilesWithFlag;
+  }
   if (profilesRes.error) throw profilesRes.error;
 
   const problems: FunnelProblem[] = (problemsRes.data ?? []).map((row) => {
@@ -1212,13 +1225,33 @@ export async function getFunnelSources(): Promise<FunnelSources> {
   return {
     problems,
     logs: (logsRes.data ?? []).map((row) => {
-      const r = row as { problem_id: string; created_at: string; kind: BuildLogKind | null };
-      return { problemId: r.problem_id, createdAt: r.created_at, kind: r.kind ?? "progress" };
+      const r = row as {
+        problem_id: string;
+        created_at: string;
+        kind: BuildLogKind | null;
+        profile_id: string | null;
+      };
+      return {
+        problemId: r.problem_id,
+        createdAt: r.created_at,
+        kind: r.kind ?? "progress",
+        authorId: r.profile_id,
+      };
     }),
     members: (profilesRes.data ?? []).map((row) => {
-      const r = row as { id: string; handle: string; created_at: string };
-      return { id: r.id, handle: r.handle, createdAt: r.created_at };
+      const r = row as unknown as {
+        id: string;
+        handle: string;
+        created_at: string;
+        is_test?: boolean;
+      };
+      return { id: r.id, handle: r.handle, createdAt: r.created_at, isTest: Boolean(r.is_test) };
     }),
+    comments: (commentsRes.data ?? []).map((row) => {
+      const r = row as { problem_id: string; profile_id: string };
+      return { problemId: r.problem_id, profileId: r.profile_id };
+    }),
+    testFlagAvailable,
   };
 }
 

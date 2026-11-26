@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, SKILLS } from "@/lib/catalog/skills";
 import { DOMAINS } from "@/lib/catalog/domains";
@@ -127,8 +127,11 @@ export default function ProfilePage() {
     setSkills((prev) => prev.map((s) => (s.id === id ? { ...s, level } : s)));
   }
 
-  function toggle(list: string[], setList: (v: string[]) => void, id: string) {
-    setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  // Functional update on purpose. This used to read `list` from the render it
+  // was created in, so two clicks inside one render both started from the same
+  // old list and the second silently undid the first.
+  function toggle(setList: Dispatch<SetStateAction<string[]>>, id: string) {
+    setList((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   function setCategoryOpen(category: SkillCategory, open: boolean) {
@@ -386,7 +389,7 @@ export default function ProfilePage() {
               type="button"
               className="chip"
               data-on={interests.includes(d.id) ? "true" : "false"}
-              onClick={() => toggle(interests, setInterests, d.id)}
+              onClick={() => toggle(setInterests, d.id)}
             >
               {d.icon} {d.label}
             </button>
@@ -407,7 +410,7 @@ export default function ProfilePage() {
               type="button"
               className="chip"
               data-on={artifactPrefs.includes(a.id) ? "true" : "false"}
-              onClick={() => toggle(artifactPrefs, setArtifactPrefs, a.id)}
+              onClick={() => toggle(setArtifactPrefs, a.id)}
             >
               {a.label}
             </button>

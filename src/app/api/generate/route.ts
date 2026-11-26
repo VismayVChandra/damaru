@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import { generateProblems, indexFrictions } from "@/lib/engine";
 import { MOOD_BY_ID } from "@/lib/catalog/moods";
+import { DEFAULT_GENERATE, MAX_GENERATE } from "@/lib/limits";
 import type { Problem } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -31,8 +32,15 @@ export async function POST(request: Request) {
     /* count is optional, so a body-less request is fine */
   }
 
-  const requested = Number(body.count);
-  const count = Number.isFinite(requested) ? Math.max(1, Math.min(5, Math.trunc(requested))) : 3;
+  // Say no out loud rather than quietly handing back fewer than was asked for.
+  const requested = body.count === undefined ? DEFAULT_GENERATE : Number(body.count);
+  if (!Number.isInteger(requested) || requested < 1 || requested > MAX_GENERATE) {
+    return NextResponse.json(
+      { error: `Ask for between 1 and ${MAX_GENERATE} briefs at a time.` },
+      { status: 400 },
+    );
+  }
+  const count = requested;
   // An unrecognised mood is ignored rather than rejected - same posture as
   // the rest of this body, and the engine falls back to an unmooded draw.
   const moodId = typeof body.mood === "string" && MOOD_BY_ID.has(body.mood) ? body.mood : undefined;

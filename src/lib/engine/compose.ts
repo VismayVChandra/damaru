@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types";
 import { CATEGORY_LABELS } from "@/lib/catalog/skills";
 import { MECHANICS } from "@/lib/catalog/blocks";
+import { isPhysicalWork } from "./fit";
 import { fingerprint, pick, pickMany, seededRandom } from "./novelty";
 
 /**
@@ -320,7 +321,17 @@ export function compose(
   );
 
   // --- Stretch goals -------------------------------------------------------
-  const otherMechanics = MECHANICS.filter((m) => m.id !== mechanic.id);
+  // A stretch goal has to be something this same build could grow into. It used
+  // to be any three other mechanics, so a command-line tool was invited to
+  // "size a structure so it survives real loads". Only mechanics that can ship
+  // as this very artifact qualify; if that leaves fewer than three, fill from
+  // mechanics of the same family (physical or not) rather than from anything.
+  const others = MECHANICS.filter((m) => m.id !== mechanic.id);
+  const sameFormat = others.filter((m) => m.artifacts.includes(artifact.id));
+  const sameFamily = others.filter(
+    (m) => !sameFormat.includes(m) && isPhysicalWork(m, artifact) === isPhysicalWork(mechanic, artifact),
+  );
+  const otherMechanics = sameFormat.length >= 3 ? sameFormat : [...sameFormat, ...sameFamily];
   const stretchGoals = pickMany(rng, otherMechanics, 3).map(
     (m) => `Add ${m.label}: ${m.requirement}`,
   );

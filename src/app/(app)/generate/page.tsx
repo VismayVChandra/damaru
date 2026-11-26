@@ -7,6 +7,7 @@ import DamaruSpinner from "@/components/DamaruSpinner";
 import { api } from "@/lib/client";
 import { DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { MOODS } from "@/lib/catalog/moods";
+import { DEFAULT_GENERATE, GENERATE_COUNTS } from "@/lib/limits";
 import type { Problem, Profile } from "@/lib/types";
 
 const WAITING_LINES = [
@@ -22,7 +23,7 @@ export default function GeneratePage() {
   // Forces SwipeTriage to remount on each new batch, rather than trying to
   // reconcile a fresh problem list into an in-progress triage session.
   const [batch, setBatch] = useState(0);
-  const [count, setCount] = useState(3);
+  const [count, setCount] = useState<number>(DEFAULT_GENERATE);
   // Null is a real answer - "anything" is the default, not a missing choice.
   const [mood, setMood] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -109,7 +110,7 @@ export default function GeneratePage() {
             <span className="label" style={{ margin: 0 }}>
               How many
             </span>
-            {[1, 3, 5].map((n) => (
+            {GENERATE_COUNTS.map((n) => (
               <button
                 key={n}
                 className="chip"

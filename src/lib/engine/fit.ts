@@ -166,6 +166,43 @@ export function scoreFit(
   };
 }
 
+/** Skill categories that mean working with physical things. */
+const PHYSICAL_CATEGORIES: ReadonlySet<SkillCategory> = new Set<SkillCategory>([
+  "hardware",
+  "mechanical",
+  "electrical",
+  "civil",
+  "chemical",
+  "aerospace",
+  "biomedical",
+  "environmental",
+  "industrial",
+]);
+
+/** Does this person list any skill that involves physical things? */
+export function hasPhysicalSkills(strengths: Map<SkillCategory, CategoryStrength>): boolean {
+  for (const category of strengths.keys()) if (PHYSICAL_CATEGORIES.has(category)) return true;
+  return false;
+}
+
+/**
+ * Would building this mean working with physical things?
+ *
+ * The doability bar tolerates one missing skill, which is right for "you've
+ * never used Postgres" and wrong for "you have never touched a circuit": a
+ * software-only profile paired a sensor mechanic with a dashboard, covered the
+ * dashboard half, and was handed a hardware project as "doable". A missing
+ * physical skill is not a gap you can read your way across, so for someone with
+ * no physical skills at all this is a gate, not a score.
+ */
+export function isPhysicalWork(mechanic: Mechanic, artifact: Artifact): boolean {
+  return (
+    artifact.kind === "physical" ||
+    mechanic.requires.some((c) => PHYSICAL_CATEGORIES.has(c)) ||
+    artifact.requires.some((c) => PHYSICAL_CATEGORIES.has(c))
+  );
+}
+
 /** How far the doability floor has been lowered to find anything at all. */
 export interface DoabilityBar {
   minFit: number;

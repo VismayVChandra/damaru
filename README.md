@@ -197,6 +197,17 @@ scored on how much of what it needs the person already has:
 
 A candidate is rejected below **0.34 fit** or with **more than one gap** — below
 that line you spend the whole project fighting tools rather than the problem.
+
+One exception to "one gap is tolerated": **a profile with no physical skill at
+all (hardware, mechanical, electrical, civil, …) is never offered physical
+work, at any relaxation tier.** The bar let a software-only profile pair a
+sensor mechanic with a dashboard, cover the dashboard half, and be handed a
+hardware project as "doable" — 17-23% of its briefs on a 120-brief simulation.
+You can read your way across a missing library; you cannot read your way across
+a circuit. Stretch goals are drawn only from mechanics that can ship as the same
+artifact (or, failing that, the same physical/non-physical family), so a
+command-line tool is no longer invited to size a structure for real loads.
+
 Everything surviving is ranked by distance from the person's stated appetite,
 expressed as a **percentile of their own reachable range** rather than an
 absolute score:
@@ -316,6 +327,19 @@ and the CLI cannot disagree. The CLI is:
 
 ```bash
 node --import ./src/scripts/register-alias.mjs src/scripts/funnel-report.ts
+```
+
+**AI and test accounts are reported separately, not hidden.** A profile with
+`is_test = true` (set by hand, like `is_admin`) is counted in its own section
+at the bottom with the same stages and definitions, plus its share of
+everything on record and whether any real member ever commented on its work.
+The club's numbers above exclude it. This exists because one AI account built
+a whole project through the app and, mixed in, supplied every build log the
+club had — which made the funnel look healthier than the club was. Until
+migration 013 is applied the page says so instead of failing.
+
+```sql
+update profiles set is_test = true where handle = 'some-handle';
 ```
 
 Admin-gated despite containing no private data, because it is per-member
@@ -705,7 +729,7 @@ different windows against the same rows in memory. If you add a sequential
 ```
 supabase/
   schema.sql             tables, constraints, RLS policies - run once per project
-  migrations/            numbered deltas, 001-012, run in order once each
+  migrations/            numbered deltas, 001-013, run in order once each
                            002b / 006 / 012 are catalogue content, not structure
 docs/
   screenshots/            images used in this README

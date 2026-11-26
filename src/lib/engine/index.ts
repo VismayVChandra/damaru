@@ -10,7 +10,14 @@ import type {
 } from "@/lib/types";
 import { DOMAINS, DOMAIN_BY_ID } from "@/lib/catalog/domains";
 import { ARTIFACTS, ARTIFACT_BY_ID, MECHANICS, MECHANIC_BY_ID, TWISTS } from "@/lib/catalog/blocks";
-import { appetiteTargetFrom, categoryStrengths, isDoable, scoreFit } from "./fit";
+import {
+  appetiteTargetFrom,
+  categoryStrengths,
+  hasPhysicalSkills,
+  isDoable,
+  isPhysicalWork,
+  scoreFit,
+} from "./fit";
 import type { DoabilityBar } from "./fit";
 import { compose } from "./compose";
 import { fingerprint, pick, pickWeighted, seededRandom } from "./novelty";
@@ -130,6 +137,9 @@ function rankCombosByMechanic(
   const strengths = categoryStrengths(profile);
   const prefs = new Set(profile.artifactPrefs);
   const timeTarget = TIME_TARGET_WEIGHT[profile.timeBudget];
+  // Someone with no physical skills at all is never offered physical work, at
+  // any relaxation tier - see isPhysicalWork for why this is a gate.
+  const allowPhysical = hasPhysicalSkills(strengths);
 
   // Pass one: what can this person build at all, and at what fits. The
   // appetite target is a percentile of *these* scores rather than an absolute,
@@ -141,6 +151,7 @@ function rankCombosByMechanic(
     for (const artifactId of mechanic.artifacts) {
       const artifact = ARTIFACT_BY_ID.get(artifactId);
       if (!artifact) continue;
+      if (!allowPhysical && isPhysicalWork(mechanic, artifact)) continue;
       const fit = scoreFit(profile, strengths, mechanic, artifact);
       if (!isDoable(fit, bar)) continue;
       if (mood && !mood.matches(mechanic, artifact, fit)) continue;

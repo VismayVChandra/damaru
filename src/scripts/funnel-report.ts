@@ -34,7 +34,23 @@ async function table<T>(path: string): Promise<T[]> {
   return r.json() as Promise<T[]>;
 }
 
-const [problemRows, logRows, profileRows] = await Promise.all([
+// `is_test` arrives with migration 013. Before it is applied the column is
+// missing and the request fails; fall back and say so, as the page does.
+let testFlagAvailable = true;
+async function profilesTable() {
+  try {
+    return await table<{ id: string; handle: string; created_at: string; is_test?: boolean }>(
+      "profiles?select=id,handle,created_at,is_test&limit=2000",
+    );
+  } catch {
+    testFlagAvailable = false;
+    return table<{ id: string; handle: string; created_at: string; is_test?: boolean }>(
+      "profiles?select=id,handle,created_at&limit=2000",
+    );
+  }
+}
+
+const [problemRows, logRows, profileRows, commentRows] = await Promise.all([
   table<{
     id: string;
     profile_id: string;
@@ -46,11 +62,15 @@ const [problemRows, logRows, profileRows] = await Promise.all([
   }>(
     "problems?select=id,profile_id,status,created_at,status_changed_at,inspired_by_problem_id,payload&limit=5000",
   ),
-  table<{ problem_id: string; created_at: string; kind: BuildLogKind | null }>(
-    "progress_entries?select=problem_id,created_at,kind&limit=5000",
-  ),
-  table<{ id: string; handle: string; created_at: string }>(
-    "profiles?select=id,handle,created_at&limit=2000",
+  table<{
+    problem_id: string;
+    created_at: string;
+    kind: BuildLogKind | null;
+    profile_id: string | null;
+  }>("progress_entries?select=problem_id,created_at,kind,profile_id&limit=5000"),
+  profilesTable(),
+  table<{ problem_id: string; profile_id: string }>(
+    "problem_comments?select=problem_id,profile_id&limit=5000",
   ),
 ]);
 
@@ -73,8 +93,16 @@ const sources: FunnelSources = {
     problemId: r.problem_id,
     createdAt: r.created_at,
     kind: r.kind ?? "progress",
+    authorId: r.profile_id,
   })),
-  members: profileRows.map((r) => ({ id: r.id, handle: r.handle, createdAt: r.created_at })),
+  members: profileRows.map((r) => ({
+    id: r.id,
+    handle: r.handle,
+    createdAt: r.created_at,
+    isTest: Boolean(r.is_test),
+  })),
+  comments: commentRows.map((r) => ({ problemId: r.problem_id, profileId: r.profile_id })),
+  testFlagAvailable,
 };
 
 const report = buildFunnel(sources);
@@ -165,6 +193,31 @@ for (const [title, name, c] of naming) {
   console.log(`\n  ${title} — leader ${pct(c.leaderShare)}, ${c.distinct} distinct`);
   for (const [id, n, share] of c.top) {
     console.log(`    ${bar(share, 20)} ${String(n).padStart(3)} ${pct(share).padStart(4)}  ${name(id)}`);
+  }
+}
+
+heading("AI AND TEST ACCOUNTS (not counted above)");
+const t = report.test;
+if (!t.flagAvailable) {
+  console.log(
+    "  Migration 013 has not been applied, so AI/test accounts cannot be told apart\n" +
+      "  from members: everything above includes them. Run supabase/migrations/013_test_accounts.sql.",
+  );
+} else if (t.accounts.length === 0) {
+  console.log("  None flagged.");
+} else {
+  console.log(`  of everything on the record : ${pct(t.shareOfAll.generated)} of briefs, ${pct(t.shareOfAll.logs)} of build logs`);
+  console.log(`  briefs generated            : ${t.generated}`);
+  for (const s of t.stages.slice(1)) console.log(`  ${s.label.toLowerCase().padEnd(28)}: ${s.count}`);
+  console.log(`  build-log entries           : ${t.evidence.logs}`);
+  console.log(`  comments written            : ${t.commentsWritten}`);
+  console.log(`  comments from real members  : ${t.commentsFromMembers}`);
+  console.log("\n  handle             gen  tri  kept  log  ship");
+  for (const m of t.accounts) {
+    console.log(
+      `  @${m.handle.padEnd(16)} ${String(m.generated).padStart(3)} ${String(m.triaged).padStart(4)} ` +
+        `${String(m.committed).padStart(5)} ${String(m.logged).padStart(4)} ${String(m.shipped).padStart(5)}`,
+    );
   }
 }
 
